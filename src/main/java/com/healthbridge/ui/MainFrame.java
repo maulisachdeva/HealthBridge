@@ -22,11 +22,9 @@ public class MainFrame extends JFrame {
 
         JPanel sidebar = createSidebar();
 
-        // Main screen container
         mainContent = new JPanel(new BorderLayout());
         mainContent.setBackground(BACKGROUND);
 
-        // Show dashboard first
         showDashboard();
 
         add(sidebar, BorderLayout.WEST);
@@ -64,6 +62,10 @@ public class MainFrame extends JFrame {
 
         patientButton.addActionListener(
                 e -> showPatientManagement()
+        );
+
+        doctorButton.addActionListener(
+                e -> showDoctorManagement()
         );
 
         sidebar.add(dashboardButton);
@@ -209,6 +211,20 @@ public class MainFrame extends JFrame {
 
         mainContent.add(
                 new PatientPanel(),
+                BorderLayout.CENTER
+        );
+
+        mainContent.revalidate();
+        mainContent.repaint();
+    }
+
+    // Show doctor management screen
+    private void showDoctorManagement() {
+
+        mainContent.removeAll();
+
+        mainContent.add(
+                new DoctorPanel(),
                 BorderLayout.CENTER
         );
 
