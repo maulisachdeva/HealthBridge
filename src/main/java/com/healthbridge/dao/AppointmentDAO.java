@@ -1,442 +1,106 @@
-
 package com.healthbridge.dao;
-
 import com.healthbridge.model.Appointment;
 import com.healthbridge.util.DBConnection;
-
 import java.sql.*;
-import java.sql.SQLException;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
-
 public class AppointmentDAO {
-
-    private static final int MAX_BOOKING_ATTEMPTS = 5;
-
-    public boolean addAppointment(Appointment appointment) throws SQLException {
-        if (appointment == null) {
-            throw new IllegalArgumentException("Appointment cannot be null");
-        }
-
-        if (appointment.getAppointmentDate() == null) {
-            throw new IllegalArgumentException("Appointment date is required");
-        }
-
-        if (appointment.getPatientId() <= 0 || appointment.getDoctorId() <= 0) {
-            throw new IllegalArgumentException("Valid patient and doctor IDs are required");
-        }
-
-        if (!"SCHEDULED".equals(appointment.getAppointmentType())
-                && !"WALK_IN".equals(appointment.getAppointmentType())) {
-            throw new IllegalArgumentException("Invalid appointment type");
-        }
-
-        String sql = """
-                INSERT INTO appointments
-                (patient_id, doctor_id, appointment_type,
-                 appointment_date, appointment_time, token_number,
-                 priority, status, reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """;
-
-        for (int attempt = 1; attempt <= MAX_BOOKING_ATTEMPTS; attempt++) {
-
-            try (Connection con = DBConnection.getConnection()) {
-
+    public boolean addAppointment(Appointment a) throws SQLException {
+        if(a==null||a.getPatientId()<=0||a.getDoctorId()<=0||a.getAppointmentDate()==null)throw new IllegalArgumentException("Patient, doctor and date are required");
+        if(!"SCHEDULED".equals(a.getAppointmentType())&&!"WALK_IN".equals(a.getAppointmentType()))throw new IllegalArgumentException("Invalid appointment type");
+        if("SCHEDULED".equals(a.getAppointmentType())&&a.getAppointmentTime()==null)throw new IllegalArgumentException("Scheduled appointments require a time");
+        if(!"NORMAL".equals(a.getPriority())&&!"EMERGENCY".equals(a.getPriority()))throw new IllegalArgumentException("Invalid priority");
+        String insert="INSERT INTO appointments (patient_id,doctor_id,appointment_type,appointment_date,appointment_time,token_number,priority,status,reason) VALUES (?,?,?,?,?,?,?,?,?)";
+        for(int attempt=0;attempt<5;attempt++){
+            try(Connection con=DBConnection.getConnection()){
                 con.setAutoCommit(false);
-
-                try {
-                    int nextToken = getNextTokenNumber(
-                            con,
-                            appointment.getDoctorId(),
-                            appointment.getAppointmentDate()
-                    );
-
-                    try (PreparedStatement ps = con.prepareStatement(
-                            sql, Statement.RETURN_GENERATED_KEYS)) {
-
-                        ps.setInt(1, appointment.getPatientId());
-                        ps.setInt(2, appointment.getDoctorId());
-                        ps.setString(3, appointment.getAppointmentType());
-
-                        ps.setDate(4, Date.valueOf(appointment.getAppointmentDate()));
-
-                        if (appointment.getAppointmentTime() != null) {
-                            ps.setTime(5, Time.valueOf(appointment.getAppointmentTime()));
-                        } else {
-                            ps.setNull(5, Types.TIME);
-                        }
-
-                        ps.setInt(6, nextToken);
-                        ps.setString(7, appointment.getPriority() == null
-                                ? "NORMAL" : appointment.getPriority());
-                        ps.setString(8, "WAITING");
-                        ps.setString(9, appointment.getReason());
-
-                        int rows = ps.executeUpdate();
-
-                        if (rows != 1) {
-                            throw new SQLException("Appointment insertion failed");
-                        }
-
-                        int generatedId = 0;
-
-                        try (ResultSet keys = ps.getGeneratedKeys()) {
-                            if (keys.next()) {
-                                generatedId = keys.getInt(1);
-                            }
-                        }
-
-                        con.commit();
-
-                        appointment.setAppointmentId(generatedId);
-                        appointment.setTokenNumber(nextToken);
-                        appointment.setStatus("WAITING");
-
-                        if (appointment.getPriority() == null) {
-                            appointment.setPriority("NORMAL");
-                        }
-
-                        return true;
+                try{
+                    try(PreparedStatement lock=con.prepareStatement("SELECT doctor_id FROM doctors WHERE doctor_id=? FOR UPDATE")){
+                        lock.setInt(1,a.getDoctorId());
+                        try(ResultSet rs=lock.executeQuery()){if(!rs.next())throw new SQLException("Doctor not found");}
                     }
-
-                } catch (SQLException e) {
-                    try {
-                        con.rollback();
-                    } catch (SQLException rollbackError) {
-                        e.addSuppressed(rollbackError);
-                        throw e;
+                    int token;
+                    try(PreparedStatement ps=con.prepareStatement("SELECT COALESCE(MAX(token_number),0)+1 FROM appointments WHERE doctor_id=? AND appointment_date=?")){
+                        ps.setInt(1,a.getDoctorId());ps.setDate(2,Date.valueOf(a.getAppointmentDate()));
+                        try(ResultSet rs=ps.executeQuery()){rs.next();token=rs.getInt(1);}
                     }
-
-                    if (e.getErrorCode() == 1062
-                            && attempt < MAX_BOOKING_ATTEMPTS) {
-                        continue;
+                    int id;
+                    try(PreparedStatement ps=con.prepareStatement(insert,Statement.RETURN_GENERATED_KEYS)){
+                        ps.setInt(1,a.getPatientId());ps.setInt(2,a.getDoctorId());ps.setString(3,a.getAppointmentType());ps.setDate(4,Date.valueOf(a.getAppointmentDate()));
+                        if(a.getAppointmentTime()==null)ps.setNull(5,Types.TIME);else ps.setTime(5,Time.valueOf(a.getAppointmentTime()));
+                        ps.setInt(6,token);ps.setString(7,a.getPriority());ps.setString(8,"WAITING");ps.setString(9,a.getReason());
+                        if(ps.executeUpdate()!=1)throw new SQLException("Booking failed");
+                        try(ResultSet keys=ps.getGeneratedKeys()){if(!keys.next())throw new SQLException("Missing appointment ID");id=keys.getInt(1);}
                     }
-
-                    throw e;
-                }
+                    con.commit();a.setAppointmentId(id);a.setTokenNumber(token);a.setStatus("WAITING");return true;
+                }catch(SQLException ex){con.rollback();if(ex.getErrorCode()==1062&&attempt<4)continue;throw ex;}
             }
         }
-
-        throw new SQLException("Unable to book appointment after retries");
+        throw new SQLException("Unable to generate a unique token");
     }
-
-    private int getNextTokenNumber(
-            Connection con, int doctorId, LocalDate date
-    ) throws SQLException {
-
-        String sql = """
-                SELECT COALESCE(MAX(token_number), 0) + 1
-                FROM appointments
-                WHERE doctor_id = ?
-                AND appointment_date = ?
-                """;
-
-        try (PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setInt(1, doctorId);
-            ps.setDate(2, Date.valueOf(date));
-
-            try (ResultSet rs = ps.executeQuery()) {
-
-                if (rs.next()) {
-                    return rs.getInt(1);
-                }
-
-                throw new SQLException("Could not generate token number");
-            }
-        }
-    }
-
     public List<Appointment> getAllAppointments() throws SQLException {
-
-        List<Appointment> appointments = new ArrayList<>();
-
-        String sql = """
-                SELECT * FROM appointments
-                ORDER BY appointment_date DESC, token_number ASC
-                """;
-
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-
-            while (rs.next()) {
-                appointments.add(mapAppointment(rs));
-            }
+        List<Appointment> result=new ArrayList<>();
+        try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement("SELECT * FROM appointments ORDER BY appointment_date DESC,doctor_id,token_number");ResultSet rs=ps.executeQuery()){
+            while(rs.next())result.add(map(rs));
         }
-
-        return appointments;
+        return result;
     }
-
-    public Appointment getAppointmentById(int appointmentId) throws SQLException {
-
-        String sql = """
-                SELECT * FROM appointments
-                WHERE appointment_id = ?
-                """;
-
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setInt(1, appointmentId);
-
-            try (ResultSet rs = ps.executeQuery()) {
-
-                if (rs.next()) {
-                    return mapAppointment(rs);
-                }
-            }
-        }
-
-        return null;
-    }
-
-    public List<Appointment> getWaitingQueue(
-            int doctorId, LocalDate date
-    ) throws SQLException {
-
-        List<Appointment> queue = new ArrayList<>();
-
-        String sql = """
-                SELECT * FROM appointments
-                WHERE doctor_id = ?
-                AND appointment_date = ?
-                AND status = 'WAITING'
-                ORDER BY
-                    CASE
-                        WHEN priority = 'EMERGENCY' THEN 0
-                        ELSE 1
-                    END,
-                    CASE
-                        WHEN appointment_type = 'SCHEDULED' THEN 0
-                        ELSE 1
-                    END,
-                    token_number ASC
-                """;
-
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setInt(1, doctorId);
-            ps.setDate(2, Date.valueOf(date));
-
-            try (ResultSet rs = ps.executeQuery()) {
-
-                while (rs.next()) {
-                    queue.add(mapAppointment(rs));
-                }
-            }
-        }
-
-        return queue;
-    }
-
-    public boolean updateAppointmentStatus(
-            int appointmentId, String newStatus
-    ) throws SQLException {
-
-        if (!isValidStatus(newStatus)) {
-            throw new IllegalArgumentException("Invalid appointment status");
-        }
-
-        String sql = """
-                UPDATE appointments
-                SET status = ?
-                WHERE appointment_id = ?
-                """;
-
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setString(1, newStatus);
-            ps.setInt(2, appointmentId);
-
-            return ps.executeUpdate() == 1;
+    public Appointment getAppointmentById(int id) throws SQLException {
+        try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement("SELECT * FROM appointments WHERE appointment_id=?")){
+            ps.setInt(1,id);try(ResultSet rs=ps.executeQuery()){return rs.next()?map(rs):null;}
         }
     }
-
-    public Appointment callNextPatient(
-            int doctorId, LocalDate date
-    ) throws SQLException {
-
-        try (Connection con = DBConnection.getConnection()) {
-
+    public List<Appointment> getWaitingQueue(int doctorId,LocalDate date) throws SQLException {
+        List<Appointment> result=new ArrayList<>();
+        String sql="SELECT * FROM appointments WHERE doctor_id=? AND appointment_date=? AND status='WAITING' ORDER BY CASE WHEN priority='EMERGENCY' THEN 0 ELSE 1 END,CASE WHEN appointment_type='SCHEDULED' THEN 0 ELSE 1 END,token_number";
+        try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement(sql)){
+            ps.setInt(1,doctorId);ps.setDate(2,Date.valueOf(date));
+            try(ResultSet rs=ps.executeQuery()){while(rs.next())result.add(map(rs));}
+        }
+        return result;
+    }
+    public boolean updateAppointmentStatus(int id,String status) throws SQLException {
+        if("COMPLETED".equals(status))return completeAppointment(id);
+        if("CANCELLED".equals(status))return cancelAppointment(id);
+        if(!"IN_PROGRESS".equals(status))throw new IllegalArgumentException("Invalid status transition");
+        try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement("UPDATE appointments SET status='IN_PROGRESS' WHERE appointment_id=? AND status='WAITING'")){
+            ps.setInt(1,id);return ps.executeUpdate()==1;
+        }
+    }
+    public Appointment callNextPatient(int doctorId,LocalDate date) throws SQLException {
+        try(Connection con=DBConnection.getConnection()){
             con.setAutoCommit(false);
-
-            try {
-                String lockSql = """
-                        SELECT doctor_id FROM doctors
-                        WHERE doctor_id = ?
-                        FOR UPDATE
-                        """;
-
-                try (PreparedStatement lock = con.prepareStatement(lockSql)) {
-                    lock.setInt(1, doctorId);
-
-                    try (ResultSet rs = lock.executeQuery()) {
-                        if (!rs.next()) {
-                            throw new SQLException("Doctor not found");
-                        }
-                    }
+            try{
+                try(PreparedStatement lock=con.prepareStatement("SELECT doctor_id FROM doctors WHERE doctor_id=? FOR UPDATE")){
+                    lock.setInt(1,doctorId);try(ResultSet rs=lock.executeQuery()){if(!rs.next())throw new SQLException("Doctor not found");}
                 }
-
-                String activeSql = """
-                        SELECT appointment_id FROM appointments
-                        WHERE doctor_id = ?
-                        AND appointment_date = ?
-                        AND status = 'IN_PROGRESS'
-                        LIMIT 1
-                        """;
-
-                try (PreparedStatement ps = con.prepareStatement(activeSql)) {
-                    ps.setInt(1, doctorId);
-                    ps.setDate(2, Date.valueOf(date));
-
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            throw new SQLException(
-                                    "Doctor already has a patient in progress"
-                            );
-                        }
-                    }
+                try(PreparedStatement active=con.prepareStatement("SELECT appointment_id FROM appointments WHERE doctor_id=? AND appointment_date=? AND status='IN_PROGRESS' LIMIT 1")){
+                    active.setInt(1,doctorId);active.setDate(2,Date.valueOf(date));try(ResultSet rs=active.executeQuery()){if(rs.next())throw new SQLException("Doctor already has a patient in progress");}
                 }
-
-                String selectSql = """
-                        SELECT * FROM appointments
-                        WHERE doctor_id = ?
-                        AND appointment_date = ?
-                        AND status = 'WAITING'
-                        ORDER BY
-                            CASE
-                                WHEN priority = 'EMERGENCY' THEN 0
-                                ELSE 1
-                            END,
-                            CASE
-                                WHEN appointment_type = 'SCHEDULED' THEN 0
-                                ELSE 1
-                            END,
-                            token_number ASC
-                        LIMIT 1
-                        """;
-
-                Appointment next = null;
-
-                try (PreparedStatement ps = con.prepareStatement(selectSql)) {
-                    ps.setInt(1, doctorId);
-                    ps.setDate(2, Date.valueOf(date));
-
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            next = mapAppointment(rs);
-                        }
-                    }
+                Appointment next=null;
+                String sql="SELECT * FROM appointments WHERE doctor_id=? AND appointment_date=? AND status='WAITING' ORDER BY CASE WHEN priority='EMERGENCY' THEN 0 ELSE 1 END,CASE WHEN appointment_type='SCHEDULED' THEN 0 ELSE 1 END,token_number LIMIT 1";
+                try(PreparedStatement ps=con.prepareStatement(sql)){
+                    ps.setInt(1,doctorId);ps.setDate(2,Date.valueOf(date));try(ResultSet rs=ps.executeQuery()){if(rs.next())next=map(rs);}
                 }
-
-                if (next == null) {
-                    con.commit();
-                    return null;
+                if(next==null){con.commit();return null;}
+                try(PreparedStatement ps=con.prepareStatement("UPDATE appointments SET status='IN_PROGRESS' WHERE appointment_id=? AND status='WAITING'")){
+                    ps.setInt(1,next.getAppointmentId());if(ps.executeUpdate()!=1)throw new SQLException("Unable to call patient");
                 }
-
-                String updateSql = """
-                        UPDATE appointments
-                        SET status = 'IN_PROGRESS'
-                        WHERE appointment_id = ?
-                        AND status = 'WAITING'
-                        """;
-
-                try (PreparedStatement ps = con.prepareStatement(updateSql)) {
-                    ps.setInt(1, next.getAppointmentId());
-
-                    if (ps.executeUpdate() != 1) {
-                        throw new SQLException("Could not call next patient");
-                    }
-                }
-
-                con.commit();
-                next.setStatus("IN_PROGRESS");
-
-                return next;
-
-            } catch (SQLException e) {
-                try {
-                    con.rollback();
-                } catch (SQLException rollbackError) {
-                    e.addSuppressed(rollbackError);
-                }
-                throw e;
-            }
+                con.commit();next.setStatus("IN_PROGRESS");return next;
+            }catch(SQLException ex){con.rollback();throw ex;}
         }
     }
-
-    public boolean completeAppointment(int appointmentId) throws SQLException {
-
-        String sql = """
-                UPDATE appointments
-                SET status = 'COMPLETED'
-                WHERE appointment_id = ?
-                AND status = 'IN_PROGRESS'
-                """;
-
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setInt(1, appointmentId);
-            return ps.executeUpdate() == 1;
+    public boolean completeAppointment(int id) throws SQLException{return changeStatus(id,"IN_PROGRESS","COMPLETED");}
+    public boolean cancelAppointment(int id) throws SQLException{return changeStatus(id,"WAITING","CANCELLED");}
+    private boolean changeStatus(int id,String from,String to) throws SQLException {
+        try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement("UPDATE appointments SET status=? WHERE appointment_id=? AND status=?")){
+            ps.setString(1,to);ps.setInt(2,id);ps.setString(3,from);return ps.executeUpdate()==1;
         }
     }
-
-    public boolean cancelAppointment(int appointmentId) throws SQLException {
-
-        String sql = """
-                UPDATE appointments
-                SET status = 'CANCELLED'
-                WHERE appointment_id = ?
-                AND status = 'WAITING'
-                """;
-
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-
-            ps.setInt(1, appointmentId);
-            return ps.executeUpdate() == 1;
-        }
-    }
-
-    private boolean isValidStatus(String status) {
-
-        return "WAITING".equals(status)
-                || "IN_PROGRESS".equals(status)
-                || "COMPLETED".equals(status)
-                || "CANCELLED".equals(status);
-    }
-
-    private Appointment mapAppointment(ResultSet rs) throws SQLException {
-
-        Appointment appointment = new Appointment();
-
-        appointment.setAppointmentId(rs.getInt("appointment_id"));
-        appointment.setPatientId(rs.getInt("patient_id"));
-        appointment.setDoctorId(rs.getInt("doctor_id"));
-        appointment.setAppointmentType(rs.getString("appointment_type"));
-
-        Date sqlDate = rs.getDate("appointment_date");
-        appointment.setAppointmentDate(
-                sqlDate == null ? null : sqlDate.toLocalDate()
-        );
-
-        Time sqlTime = rs.getTime("appointment_time");
-        appointment.setAppointmentTime(
-                sqlTime == null ? null : sqlTime.toLocalTime()
-        );
-
-        appointment.setTokenNumber(rs.getInt("token_number"));
-        appointment.setPriority(rs.getString("priority"));
-        appointment.setStatus(rs.getString("status"));
-        appointment.setReason(rs.getString("reason"));
-
-        return appointment;
+    private Appointment map(ResultSet rs) throws SQLException {
+        Appointment a=new Appointment();a.setAppointmentId(rs.getInt("appointment_id"));a.setPatientId(rs.getInt("patient_id"));a.setDoctorId(rs.getInt("doctor_id"));a.setAppointmentType(rs.getString("appointment_type"));
+        Date d=rs.getDate("appointment_date");a.setAppointmentDate(d==null?null:d.toLocalDate());Time t=rs.getTime("appointment_time");a.setAppointmentTime(t==null?null:t.toLocalTime());
+        a.setTokenNumber(rs.getInt("token_number"));a.setPriority(rs.getString("priority"));a.setStatus(rs.getString("status"));a.setReason(rs.getString("reason"));return a;
     }
 }
