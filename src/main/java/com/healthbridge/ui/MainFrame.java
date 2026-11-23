@@ -68,6 +68,12 @@ public class MainFrame extends JFrame {
                 e -> showDoctorManagement()
         );
 
+
+        appointmentButton.addActionListener(
+                e -> showAppointmentManagement()
+        );
+
+
         sidebar.add(dashboardButton);
         sidebar.add(patientButton);
         sidebar.add(doctorButton);
@@ -231,4 +237,18 @@ public class MainFrame extends JFrame {
         mainContent.revalidate();
         mainContent.repaint();
     }
+
+    private void showAppointmentManagement() {
+
+        mainContent.removeAll();
+
+        mainContent.add(
+                new AppointmentPanel(),
+                BorderLayout.CENTER
+        );
+
+        mainContent.revalidate();
+        mainContent.repaint();
+    }
+
 }
