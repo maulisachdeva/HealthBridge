@@ -14,7 +14,6 @@ public class MedicalRecordDAO {
 
     // 1. Add a new medical record
     public boolean addMedicalRecord(MedicalRecord record) {
-
         String sql = "INSERT INTO medical_records " +
                 "(patient_id, doctor_id, appointment_id, symptoms, diagnosis, treatment, record_date) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -40,7 +39,6 @@ public class MedicalRecordDAO {
 
     // 2. Get all medical records
     public List<MedicalRecord> getAllMedicalRecords() {
-
         List<MedicalRecord> records = new ArrayList<>();
 
         String sql = "SELECT * FROM medical_records";
@@ -63,18 +61,21 @@ public class MedicalRecordDAO {
                 );
 
                 records.add(record);
+
+
             }
 
         } catch (SQLException e) {
             System.out.println("Error fetching medical records: " + e.getMessage());
         }
 
+
+
         return records;
     }
 
     // 3. Search medical records using patient ID
     public List<MedicalRecord> getMedicalRecordsByPatientId(int patientId) {
-
         List<MedicalRecord> records = new ArrayList<>();
 
         String sql = "SELECT * FROM medical_records WHERE patient_id = ?";
@@ -85,7 +86,6 @@ public class MedicalRecordDAO {
             statement.setInt(1, patientId);
 
             try (ResultSet resultSet = statement.executeQuery()) {
-
                 while (resultSet.next()) {
 
                     MedicalRecord record = new MedicalRecord(
@@ -112,7 +112,6 @@ public class MedicalRecordDAO {
 
     // 4. Get medical record using record ID
     public MedicalRecord getMedicalRecordById(int recordId) {
-
         String sql = "SELECT * FROM medical_records WHERE record_id = ?";
 
         try (Connection connection = DBConnection.getConnection();
@@ -121,7 +120,6 @@ public class MedicalRecordDAO {
             statement.setInt(1, recordId);
 
             try (ResultSet resultSet = statement.executeQuery()) {
-
                 if (resultSet.next()) {
 
                     return new MedicalRecord(
