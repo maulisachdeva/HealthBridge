@@ -9,6 +9,7 @@ import java.util.List;
 
 public class BillDAO {
 
+    // Ayaan - 10/11/26 - 
     // 1. CREATE NEW BILL
     public boolean createBill(Bill bill) {
 
@@ -75,7 +76,8 @@ public class BillDAO {
     }
 
 
-    // 3. GET ALL BILLS
+    //Ayaan 13/11/26 - 
+    //  3. GET ALL BILLS
     public List<Bill> getAllBills() {
 
         List<Bill> bills = new ArrayList<>();
@@ -125,6 +127,7 @@ public class BillDAO {
     }
 
 
+    // Ayaan 15/11/26 - 
     // 5. UPDATE PAYMENT STATUS
     public boolean updatePaymentStatus(int billId, String status) {
 
