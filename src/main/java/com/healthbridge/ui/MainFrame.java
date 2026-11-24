@@ -15,10 +15,14 @@ public class MainFrame extends JFrame {
     public MainFrame() {
 
         setTitle("HealthBridge - Smart Clinic Management System");
-        setSize(1100, 700);
+
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
         setLayout(new BorderLayout());
+
+        setSize(1200, 750);
+        setMinimumSize(new Dimension(950, 650));
+        setLocationRelativeTo(null);
+        setResizable(true);
 
         JPanel sidebar = createSidebar();
 
@@ -31,11 +35,10 @@ public class MainFrame extends JFrame {
         add(mainContent, BorderLayout.CENTER);
     }
 
-    // Sidebar
+    // Create sidebar
     private JPanel createSidebar() {
 
         JPanel sidebar = new JPanel();
-
         sidebar.setBackground(DARK_BLUE);
         sidebar.setPreferredSize(new Dimension(230, 700));
         sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
@@ -44,8 +47,9 @@ public class MainFrame extends JFrame {
 
         title.setForeground(WHITE);
         title.setFont(new Font("Arial", Font.BOLD, 25));
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
         title.setBorder(
-                BorderFactory.createEmptyBorder(35, 25, 35, 10)
+                BorderFactory.createEmptyBorder(30, 20, 30, 10)
         );
 
         sidebar.add(title);
@@ -57,16 +61,9 @@ public class MainFrame extends JFrame {
         JButton recordsButton = createNavButton("Medical Records");
         JButton billingButton = createNavButton("Billing & Reports");
 
-        // Button actions
         dashboardButton.addActionListener(e -> showDashboard());
-
-        patientButton.addActionListener(
-                e -> showPatientManagement()
-        );
-
-        doctorButton.addActionListener(
-                e -> showDoctorManagement()
-        );
+        patientButton.addActionListener(e -> showPatientManagement());
+        doctorButton.addActionListener(e -> showDoctorManagement());
 
         sidebar.add(dashboardButton);
         sidebar.add(patientButton);
@@ -75,27 +72,48 @@ public class MainFrame extends JFrame {
         sidebar.add(recordsButton);
         sidebar.add(billingButton);
 
-        return sidebar;
+        // Make sidebar scrollable if vertical space is limited
+        JScrollPane sidebarScroll = new JScrollPane(sidebar);
+
+        sidebarScroll.setPreferredSize(new Dimension(230, 700));
+        sidebarScroll.setHorizontalScrollBarPolicy(
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+        );
+        sidebarScroll.setVerticalScrollBarPolicy(
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        );
+        sidebarScroll.setBorder(null);
+
+        return createSidebarWrapper(sidebarScroll);
     }
 
-    // Navigation button
+    private JPanel createSidebarWrapper(JScrollPane scrollPane) {
+
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBackground(DARK_BLUE);
+        wrapper.add(scrollPane, BorderLayout.CENTER);
+        wrapper.setPreferredSize(new Dimension(230, 700));
+
+        return wrapper;
+    }
+
+    // Create navigation button
     private JButton createNavButton(String text) {
 
         JButton button = new JButton(text);
 
         button.setForeground(WHITE);
         button.setBackground(DARK_BLUE);
-        button.setFont(new Font("Arial", Font.PLAIN, 15));
+        button.setFont(new Font("Arial", Font.PLAIN, 14));
         button.setHorizontalAlignment(SwingConstants.LEFT);
         button.setFocusPainted(false);
-
+        button.setAlignmentX(Component.LEFT_ALIGNMENT);
+        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 55));
+        button.setPreferredSize(new Dimension(220, 55));
         button.setBorder(
-                BorderFactory.createEmptyBorder(15, 25, 15, 10)
+                BorderFactory.createEmptyBorder(12, 20, 12, 8)
         );
-
-        button.setMaximumSize(
-                new Dimension(Integer.MAX_VALUE, 55)
-        );
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         return button;
     }
@@ -105,29 +123,26 @@ public class MainFrame extends JFrame {
 
         mainContent.removeAll();
 
-        JPanel content = new JPanel(new BorderLayout());
+        JPanel content = new JPanel(new BorderLayout(15, 15));
         content.setBackground(BACKGROUND);
-
         content.setBorder(
-                BorderFactory.createEmptyBorder(30, 35, 30, 35)
+                BorderFactory.createEmptyBorder(25, 30, 25, 30)
         );
 
         JLabel heading = new JLabel("Welcome to HealthBridge");
-
         heading.setFont(new Font("Arial", Font.BOLD, 28));
         heading.setForeground(DARK_BLUE);
 
         JLabel subtitle = new JLabel(
-                "Smart Clinic Management and Queue Automation System"
+                "<html>Smart Clinic Management and Queue Automation System</html>"
         );
-
         subtitle.setFont(new Font("Arial", Font.PLAIN, 15));
         subtitle.setForeground(Color.GRAY);
 
         JPanel header = new JPanel();
-
         header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
         header.setBackground(BACKGROUND);
+        header.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         header.add(heading);
         header.add(Box.createVerticalStrut(10));
@@ -135,11 +150,10 @@ public class MainFrame extends JFrame {
 
         content.add(header, BorderLayout.NORTH);
 
-        JPanel cards = new JPanel(new GridLayout(1, 2, 20, 20));
-
+        JPanel cards = new JPanel(new GridLayout(0, 2, 20, 20));
         cards.setBackground(BACKGROUND);
         cards.setBorder(
-                BorderFactory.createEmptyBorder(40, 0, 0, 0)
+                BorderFactory.createEmptyBorder(35, 0, 0, 0)
         );
 
         cards.add(createDashboardCard(
@@ -152,7 +166,11 @@ public class MainFrame extends JFrame {
                 "Manage doctor profiles and specializations"
         ));
 
-        content.add(cards, BorderLayout.CENTER);
+        JPanel cardContainer = new JPanel(new BorderLayout());
+        cardContainer.setBackground(BACKGROUND);
+        cardContainer.add(cards, BorderLayout.NORTH);
+
+        content.add(cardContainer, BorderLayout.CENTER);
 
         mainContent.add(content, BorderLayout.CENTER);
 
@@ -160,13 +178,10 @@ public class MainFrame extends JFrame {
         mainContent.repaint();
     }
 
-    // Dashboard card
-    private JPanel createDashboardCard(
-            String title,
-            String description) {
+    // Create dashboard card
+    private JPanel createDashboardCard(String title, String description) {
 
         JPanel card = new JPanel();
-
         card.setBackground(WHITE);
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 
@@ -182,19 +197,16 @@ public class MainFrame extends JFrame {
         );
 
         JLabel titleLabel = new JLabel(title);
-
-        titleLabel.setFont(
-                new Font("Arial", Font.BOLD, 20)
-        );
-
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
         titleLabel.setForeground(DARK_BLUE);
 
-        JLabel descriptionLabel = new JLabel(description);
-
-        descriptionLabel.setFont(
-                new Font("Arial", Font.PLAIN, 13)
+        JLabel descriptionLabel = new JLabel(
+                "<html><div style='width:180px;'>"
+                        + description
+                        + "</div></html>"
         );
 
+        descriptionLabel.setFont(new Font("Arial", Font.PLAIN, 13));
         descriptionLabel.setForeground(Color.GRAY);
 
         card.add(titleLabel);
@@ -204,7 +216,7 @@ public class MainFrame extends JFrame {
         return card;
     }
 
-    // Show patient management screen
+    // Show patient management
     private void showPatientManagement() {
 
         mainContent.removeAll();
@@ -218,7 +230,7 @@ public class MainFrame extends JFrame {
         mainContent.repaint();
     }
 
-    // Show doctor management screen
+    // Show doctor management
     private void showDoctorManagement() {
 
         mainContent.removeAll();
