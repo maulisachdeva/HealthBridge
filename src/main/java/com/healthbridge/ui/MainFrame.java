@@ -68,6 +68,10 @@ public class MainFrame extends JFrame {
                 e -> showDoctorManagement()
         );
 
+        billingButton.addActionListener(
+                e -> showBillingManagement()
+        );
+
         sidebar.add(dashboardButton);
         sidebar.add(patientButton);
         sidebar.add(doctorButton);
@@ -225,6 +229,20 @@ public class MainFrame extends JFrame {
 
         mainContent.add(
                 new DoctorPanel(),
+                BorderLayout.CENTER
+        );
+
+        mainContent.revalidate();
+        mainContent.repaint();
+    }
+
+    // Show Billing & Reports screen
+    private void showBillingManagement() {
+
+        mainContent.removeAll();
+
+        mainContent.add(
+                new BillingPanel(),
                 BorderLayout.CENTER
         );
 
