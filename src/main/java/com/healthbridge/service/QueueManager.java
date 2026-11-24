@@ -11,8 +11,8 @@ public class QueueManager {
     public QueueManager(AppointmentDAO dao){this.dao=dao;}
     public List<Appointment> getWaitingQueue(int doctorId,LocalDate date) throws SQLException {
         List<Appointment> queue=dao.getWaitingQueue(doctorId,date);
-        queue.sort(Comparator.comparingInt((Appointment a)->"EMERGENCY".equals(a.getPriority())?0:1)
-            .thenComparingInt(a->"SCHEDULED".equals(a.getAppointmentType())?0:1)
+        queue.sort(Comparator.comparingInt((Appointment a)->"SCHEDULED".equals(a.getAppointmentType())?0:1)
+            .thenComparingInt(a->"EMERGENCY".equals(a.getPriority())?0:1)
             .thenComparingInt(Appointment::getTokenNumber));
         return queue;
     }

@@ -10,15 +10,37 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.ResolverStyle;
+import java.time.format.DateTimeParseException;
 public class AppointmentPanel extends JPanel {
     private final AppointmentDAO dao=new AppointmentDAO();
     public AppointmentPanel(){
         setLayout(new BorderLayout(12,12));setBorder(BorderFactory.createEmptyBorder(24,24,24,24));
         JLabel title=new JLabel("Appointment Management");title.setFont(new Font("Arial",Font.BOLD,26));
-        JPanel buttons=new JPanel(new FlowLayout(FlowLayout.LEFT));
+        GridLayout buttonLayout=new GridLayout(0,4,10,10);
+        JPanel buttons=new JPanel(buttonLayout);
         JButton book=new JButton("Book Appointment"),view=new JButton("View Appointments"),queue=new JButton("Smart Queue"),cancel=new JButton("Cancel Appointment");
         buttons.add(book);buttons.add(view);buttons.add(queue);buttons.add(cancel);
         JPanel top=new JPanel(new BorderLayout());top.add(title,BorderLayout.NORTH);top.add(buttons,BorderLayout.CENTER);add(top,BorderLayout.NORTH);
+        addComponentListener(new java.awt.event.ComponentAdapter(){
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e){
+                int available=getWidth()-getInsets().left-getInsets().right;
+                int buttonWidth=0;
+                for(Component button:buttons.getComponents()){
+                    buttonWidth=Math.max(buttonWidth,button.getPreferredSize().width);
+                }
+                int columns=available>=4*buttonWidth+30?4:available>=2*buttonWidth+10?2:1;
+                if(buttonLayout.getColumns()!=columns){
+                    buttonLayout.setColumns(columns);
+                    buttons.revalidate();
+                    top.revalidate();
+                    AppointmentPanel.this.revalidate();
+                    AppointmentPanel.this.repaint();
+                }
+            }
+        });
         book.addActionListener(e->book());view.addActionListener(e->view());queue.addActionListener(e->new QueuePanel().open(this));cancel.addActionListener(e->cancel());
     }
     private void book(){
@@ -26,7 +48,7 @@ public class AppointmentPanel extends JPanel {
         for(Patient p:new PatientDAO().getAllPatients())patients.addItem(new Choice(p.getPatientId(),p.getName()));
         for(Doctor d:new DoctorDAO().getAllDoctors())doctors.addItem(new Choice(d.getDoctorId(),d.getName()+" - "+d.getSpecialization()));
         if(patients.getItemCount()==0||doctors.getItemCount()==0){message("Register at least one patient and doctor first.");return;}
-        JTextField date=new JTextField(LocalDate.now().toString()),time=new JTextField("10:30"),reason=new JTextField();
+        JTextField date=new JTextField(LocalDate.now().toString()),time=new JTextField(""),reason=new JTextField();
         JComboBox<String> type=new JComboBox<>(new String[]{"SCHEDULED","WALK_IN"}),priority=new JComboBox<>(new String[]{"NORMAL","EMERGENCY"});
         JLabel timeLabel=new JLabel("Time (HH:MM):");
         type.addActionListener(e->{boolean scheduled="SCHEDULED".equals(type.getSelectedItem());time.setEnabled(scheduled);timeLabel.setEnabled(scheduled);});
@@ -37,16 +59,17 @@ public class AppointmentPanel extends JPanel {
         if(JOptionPane.showConfirmDialog(this,form,"Book Appointment",JOptionPane.OK_CANCEL_OPTION,JOptionPane.PLAIN_MESSAGE)!=JOptionPane.OK_OPTION)return;
         try{
             Appointment a=new Appointment();a.setPatientId(((Choice)patients.getSelectedItem()).id);a.setDoctorId(((Choice)doctors.getSelectedItem()).id);
-            a.setAppointmentDate(LocalDate.parse(date.getText().trim()));a.setAppointmentType((String)type.getSelectedItem());
-            a.setAppointmentTime("SCHEDULED".equals(a.getAppointmentType())?LocalTime.parse(time.getText().trim()):null);
+            a.setAppointmentDate(LocalDate.parse(date.getText().trim(),DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT)));a.setAppointmentType((String)type.getSelectedItem());
+            a.setAppointmentTime("SCHEDULED".equals(a.getAppointmentType())?LocalTime.parse(time.getText().trim(),DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT)):null);
             a.setPriority((String)priority.getSelectedItem());a.setReason(reason.getText().trim());
             if(dao.addAppointment(a))message("Appointment booked successfully!\nAppointment ID: "+a.getAppointmentId()+"\nToken: "+a.getTokenNumber());
-        }catch(Exception ex){error(ex);}
+        }catch(DateTimeParseException ex){message("Enter a valid date (YYYY-MM-DD) and scheduled time (HH:MM).");}
+        catch(Exception ex){error(ex);}
     }
     private void view(){
         try{
             DefaultTableModel model=new DefaultTableModel(new String[]{"ID","Patient","Doctor","Date","Time","Token","Type","Priority","Status"},0){public boolean isCellEditable(int r,int c){return false;}};
-            for(Appointment a:dao.getAllAppointments())model.addRow(new Object[]{a.getAppointmentId(),a.getPatientId(),a.getDoctorId(),a.getAppointmentDate(),a.getAppointmentTime(),a.getTokenNumber(),a.getAppointmentType(),a.getPriority(),a.getStatus()});
+            for(Appointment a:dao.getAllAppointments())model.addRow(new Object[]{a.getAppointmentId(),a.getPatientName(),a.getDoctorName(),a.getAppointmentDate(),a.getAppointmentTime(),a.getTokenNumber(),a.getAppointmentType(),a.getPriority(),a.getStatus()});
             JTable table=new JTable(model);table.setRowHeight(26);JScrollPane scroll=new JScrollPane(table);scroll.setPreferredSize(new Dimension(900,400));
             JOptionPane.showMessageDialog(this,scroll,"Appointments",JOptionPane.PLAIN_MESSAGE);
         }catch(Exception ex){error(ex);}

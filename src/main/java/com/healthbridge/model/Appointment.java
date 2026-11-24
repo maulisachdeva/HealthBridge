@@ -3,13 +3,17 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 public class Appointment {
     private int appointmentId, patientId, doctorId, tokenNumber;
-    private String appointmentType, priority, status, reason;
+    private String appointmentType, priority, status, reason, patientName, doctorName;
     private LocalDate appointmentDate;
     private LocalTime appointmentTime;
     public Appointment() {}
     public Appointment(int appointmentId,int patientId,int doctorId,String appointmentType,LocalDate appointmentDate,LocalTime appointmentTime,int tokenNumber,String priority,String status,String reason) {
         this.appointmentId=appointmentId;this.patientId=patientId;this.doctorId=doctorId;this.appointmentType=appointmentType;this.appointmentDate=appointmentDate;this.appointmentTime=appointmentTime;this.tokenNumber=tokenNumber;this.priority=priority;this.status=status;this.reason=reason;
     }
+    public String getPatientName(){return patientName;}
+    public void setPatientName(String v){patientName=v;}
+    public String getDoctorName(){return doctorName;}
+    public void setDoctorName(String v){doctorName=v;}
     public int getAppointmentId(){return appointmentId;}
     public void setAppointmentId(int v){appointmentId=v;}
     public int getPatientId(){return patientId;}

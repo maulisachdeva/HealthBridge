@@ -3,14 +3,22 @@ import com.healthbridge.model.Appointment;
 import com.healthbridge.util.DBConnection;
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 public class AppointmentDAO {
+    private static final String SELECT_DETAILS = "SELECT a.*, p.name AS patient_name, d.name AS doctor_name FROM appointments a JOIN patients p ON a.patient_id=p.patient_id JOIN doctors d ON a.doctor_id=d.doctor_id ";
+    private static final String QUEUE_ORDER = " ORDER BY CASE WHEN a.appointment_type='SCHEDULED' THEN 0 ELSE 1 END, CASE WHEN a.priority='EMERGENCY' THEN 0 ELSE 1 END, a.token_number ASC";
+
     public boolean addAppointment(Appointment a) throws SQLException {
         if(a==null||a.getPatientId()<=0||a.getDoctorId()<=0||a.getAppointmentDate()==null)throw new IllegalArgumentException("Patient, doctor and date are required");
         if(!"SCHEDULED".equals(a.getAppointmentType())&&!"WALK_IN".equals(a.getAppointmentType()))throw new IllegalArgumentException("Invalid appointment type");
         if("SCHEDULED".equals(a.getAppointmentType())&&a.getAppointmentTime()==null)throw new IllegalArgumentException("Scheduled appointments require a time");
         if(!"NORMAL".equals(a.getPriority())&&!"EMERGENCY".equals(a.getPriority()))throw new IllegalArgumentException("Invalid priority");
+        LocalDateTime now=LocalDateTime.now();
+        if(a.getAppointmentDate().isBefore(now.toLocalDate()))throw new IllegalArgumentException("Appointment date cannot be in the past");
+        if("SCHEDULED".equals(a.getAppointmentType()) && !LocalDateTime.of(a.getAppointmentDate(),a.getAppointmentTime()).isAfter(now))throw new IllegalArgumentException("Scheduled appointment must be in the future");
+        if("WALK_IN".equals(a.getAppointmentType()))a.setAppointmentTime(null);
         String insert="INSERT INTO appointments (patient_id,doctor_id,appointment_type,appointment_date,appointment_time,token_number,priority,status,reason) VALUES (?,?,?,?,?,?,?,?,?)";
         for(int attempt=0;attempt<5;attempt++){
             try(Connection con=DBConnection.getConnection()){
@@ -41,19 +49,19 @@ public class AppointmentDAO {
     }
     public List<Appointment> getAllAppointments() throws SQLException {
         List<Appointment> result=new ArrayList<>();
-        try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement("SELECT * FROM appointments ORDER BY appointment_date DESC,doctor_id,token_number");ResultSet rs=ps.executeQuery()){
+        try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement(SELECT_DETAILS+"ORDER BY a.appointment_date DESC,a.doctor_id,a.token_number");ResultSet rs=ps.executeQuery()){
             while(rs.next())result.add(map(rs));
         }
         return result;
     }
     public Appointment getAppointmentById(int id) throws SQLException {
-        try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement("SELECT * FROM appointments WHERE appointment_id=?")){
+        try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement(SELECT_DETAILS+"WHERE a.appointment_id=?")){
             ps.setInt(1,id);try(ResultSet rs=ps.executeQuery()){return rs.next()?map(rs):null;}
         }
     }
     public List<Appointment> getWaitingQueue(int doctorId,LocalDate date) throws SQLException {
         List<Appointment> result=new ArrayList<>();
-        String sql="SELECT * FROM appointments WHERE doctor_id=? AND appointment_date=? AND status='WAITING' ORDER BY CASE WHEN priority='EMERGENCY' THEN 0 ELSE 1 END,CASE WHEN appointment_type='SCHEDULED' THEN 0 ELSE 1 END,token_number";
+        String sql=SELECT_DETAILS+"WHERE a.doctor_id=? AND a.appointment_date=? AND a.status='WAITING'"+QUEUE_ORDER;
         try(Connection con=DBConnection.getConnection();PreparedStatement ps=con.prepareStatement(sql)){
             ps.setInt(1,doctorId);ps.setDate(2,Date.valueOf(date));
             try(ResultSet rs=ps.executeQuery()){while(rs.next())result.add(map(rs));}
@@ -79,7 +87,7 @@ public class AppointmentDAO {
                     active.setInt(1,doctorId);active.setDate(2,Date.valueOf(date));try(ResultSet rs=active.executeQuery()){if(rs.next())throw new SQLException("Doctor already has a patient in progress");}
                 }
                 Appointment next=null;
-                String sql="SELECT * FROM appointments WHERE doctor_id=? AND appointment_date=? AND status='WAITING' ORDER BY CASE WHEN priority='EMERGENCY' THEN 0 ELSE 1 END,CASE WHEN appointment_type='SCHEDULED' THEN 0 ELSE 1 END,token_number LIMIT 1";
+                String sql=SELECT_DETAILS+"WHERE a.doctor_id=? AND a.appointment_date=? AND a.status='WAITING'"+QUEUE_ORDER+" LIMIT 1";
                 try(PreparedStatement ps=con.prepareStatement(sql)){
                     ps.setInt(1,doctorId);ps.setDate(2,Date.valueOf(date));try(ResultSet rs=ps.executeQuery()){if(rs.next())next=map(rs);}
                 }
@@ -99,7 +107,7 @@ public class AppointmentDAO {
         }
     }
     private Appointment map(ResultSet rs) throws SQLException {
-        Appointment a=new Appointment();a.setAppointmentId(rs.getInt("appointment_id"));a.setPatientId(rs.getInt("patient_id"));a.setDoctorId(rs.getInt("doctor_id"));a.setAppointmentType(rs.getString("appointment_type"));
+        Appointment a=new Appointment();a.setPatientName(rs.getString("patient_name"));a.setDoctorName(rs.getString("doctor_name"));a.setAppointmentId(rs.getInt("appointment_id"));a.setPatientId(rs.getInt("patient_id"));a.setDoctorId(rs.getInt("doctor_id"));a.setAppointmentType(rs.getString("appointment_type"));
         Date d=rs.getDate("appointment_date");a.setAppointmentDate(d==null?null:d.toLocalDate());Time t=rs.getTime("appointment_time");a.setAppointmentTime(t==null?null:t.toLocalTime());
         a.setTokenNumber(rs.getInt("token_number"));a.setPriority(rs.getString("priority"));a.setStatus(rs.getString("status"));a.setReason(rs.getString("reason"));return a;
     }
