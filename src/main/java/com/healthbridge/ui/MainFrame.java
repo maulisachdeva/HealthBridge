@@ -64,10 +64,9 @@ public class MainFrame extends JFrame {
         dashboardButton.addActionListener(e -> showDashboard());
         patientButton.addActionListener(e -> showPatientManagement());
         doctorButton.addActionListener(e -> showDoctorManagement());
-
-        billingButton.addActionListener(
-                e -> showBillingManagement()
-        );
+        appointmentButton.addActionListener(e -> showAppointmentManagement());
+        recordsButton.addActionListener(e -> showMedicalRecords());
+        billingButton.addActionListener(e -> showBillingManagement());
 
         sidebar.add(dashboardButton);
         sidebar.add(patientButton);
@@ -243,6 +242,43 @@ public class MainFrame extends JFrame {
                 new DoctorPanel(),
                 BorderLayout.CENTER
         );
+
+        mainContent.revalidate();
+        mainContent.repaint();
+    }
+
+    // Show appointment management
+    private void showAppointmentManagement() {
+
+        mainContent.removeAll();
+
+        mainContent.add(
+                new AppointmentPanel(),
+                BorderLayout.CENTER
+        );
+
+        mainContent.revalidate();
+        mainContent.repaint();
+    }
+
+    // Show medical records
+    private void showMedicalRecords() {
+
+        mainContent.removeAll();
+
+        JPanel recordsPanel = new JPanel(new BorderLayout());
+        recordsPanel.setBackground(BACKGROUND);
+
+        JLabel message = new JLabel(
+                "Medical Records module",
+                SwingConstants.CENTER
+        );
+        message.setFont(new Font("Arial", Font.BOLD, 22));
+        message.setForeground(DARK_BLUE);
+
+        recordsPanel.add(message, BorderLayout.CENTER);
+
+        mainContent.add(recordsPanel, BorderLayout.CENTER);
 
         mainContent.revalidate();
         mainContent.repaint();
