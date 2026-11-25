@@ -44,8 +44,9 @@ public class BillDAO {
             }
 
         } catch (SQLException e) {
-            System.out.println("Error creating bill: " + e.getMessage());
-        }
+    System.out.println("ERROR WHILE CREATING BILL:");
+    e.printStackTrace();
+}
 
         return false;
     }
@@ -198,5 +199,67 @@ public class BillDAO {
 
         return bill;
     }
+
+    // 8. GET TOTAL NUMBER OF BILLS
+    //ayaan - 21 nov 2026
+public int getTotalBillCount() {
+
+    String sql = "SELECT COUNT(*) FROM bills";
+
+    try (Connection con = DBConnection.getConnection();
+         PreparedStatement pst = con.prepareStatement(sql);
+         ResultSet rs = pst.executeQuery()) {
+
+        if (rs.next()) {
+            return rs.getInt(1);
+        }
+
+    } catch (SQLException e) {
+        System.out.println("Error counting bills: " + e.getMessage());
+    }
+
+    return 0;
+}
+// 9. GET TOTAL REVENUE
+//ayaan - 23 nov 2026
+public double getTotalRevenue() {
+
+    String sql = "SELECT COALESCE(SUM(total_amount), 0) " +
+                 "FROM bills WHERE payment_status = 'PAID'";
+
+    try (Connection con = DBConnection.getConnection();
+         PreparedStatement pst = con.prepareStatement(sql);
+         ResultSet rs = pst.executeQuery()) {
+
+        if (rs.next()) {
+            return rs.getDouble(1);
+        }
+
+    } catch (SQLException e) {
+        System.out.println("Error calculating revenue: " + e.getMessage());
+    }
+
+    return 0.0;
+}
+// 10. GET PENDING AMOUNT
+public double getPendingAmount() {
+
+    String sql = "SELECT COALESCE(SUM(total_amount), 0) " +
+                 "FROM bills WHERE payment_status = 'PENDING'";
+
+    try (Connection con = DBConnection.getConnection();
+         PreparedStatement pst = con.prepareStatement(sql);
+         ResultSet rs = pst.executeQuery()) {
+
+        if (rs.next()) {
+            return rs.getDouble(1);
+        }
+
+    } catch (SQLException e) {
+        System.out.println("Error calculating pending amount: " + e.getMessage());
+    }
+
+    return 0.0;
+}
 }
 
