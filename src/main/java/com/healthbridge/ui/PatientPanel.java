@@ -5,12 +5,12 @@ import com.healthbridge.dao.PatientDAO;
 import com.healthbridge.model.Patient;
 
 import javax.swing.*;
-import javax.swing.event.TableModelEvent;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public class PatientPanel extends JPanel {
 
@@ -27,6 +27,13 @@ public class PatientPanel extends JPanel {
 
     private JTable patientTable;
     private DefaultTableModel tableModel;
+
+    private JButton registerButton;
+    private JButton updateButton;
+    private JButton deleteButton;
+    private JButton clearButton;
+    private JButton searchButton;
+    private JButton refreshButton;
 
     private int selectedPatientId = -1;
 
@@ -56,6 +63,7 @@ public class PatientPanel extends JPanel {
 
         add(centerPanel, BorderLayout.CENTER);
 
+        // Load patients in a background thread
         loadPatients();
     }
 
@@ -87,10 +95,10 @@ public class PatientPanel extends JPanel {
         addFormField(form, "Address:", addressField);
 
         // Action buttons
-        JButton registerButton = new JButton("Register Patient");
-        JButton updateButton = new JButton("Update Patient");
-        JButton deleteButton = new JButton("Delete Patient");
-        JButton clearButton = new JButton("Clear");
+        registerButton = new JButton("Register Patient");
+        updateButton = new JButton("Update Patient");
+        deleteButton = new JButton("Delete Patient");
+        clearButton = new JButton("Clear");
 
         registerButton.addActionListener(e -> registerPatient());
         updateButton.addActionListener(e -> updatePatient());
@@ -165,16 +173,19 @@ public class PatientPanel extends JPanel {
 
         patientTable.setFont(new Font("Arial", Font.PLAIN, 12));
         patientTable.setRowHeight(32);
+
         patientTable.addComponentListener(new java.awt.event.ComponentAdapter() {
             @Override
             public void componentResized(java.awt.event.ComponentEvent e) {
                 SwingUtilities.invokeLater(PatientPanel.this::adjustTableRowHeights);
             }
         });
+
         patientTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         patientTable.setFillsViewportHeight(true);
         patientTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         patientTable.getTableHeader().setReorderingAllowed(false);
+
         patientTable.getTableHeader().setFont(
                 new Font("Arial", Font.BOLD, 12)
         );
@@ -221,11 +232,12 @@ public class PatientPanel extends JPanel {
         gbc.gridy = 0;
 
         JLabel searchLabel = new JLabel("Patient ID:");
+
         searchField = new JTextField(12);
         searchField.setFont(new Font("Arial", Font.PLAIN, 13));
 
-        JButton searchButton = new JButton("Search by ID");
-        JButton refreshButton = new JButton("Refresh");
+        searchButton = new JButton("Search by ID");
+        refreshButton = new JButton("Refresh");
 
         styleButton(searchButton);
         styleButton(refreshButton);
@@ -347,47 +359,112 @@ public class PatientPanel extends JPanel {
         }
     }
 
-    // Register patient
+    // Disable buttons while a database operation is running
+    private void setBusy(boolean busy) {
+
+        registerButton.setEnabled(!busy);
+        updateButton.setEnabled(!busy);
+        deleteButton.setEnabled(!busy);
+        clearButton.setEnabled(!busy);
+
+        searchButton.setEnabled(!busy);
+        refreshButton.setEnabled(!busy);
+    }
+
+    // Handle exceptions from background workers
+    private void showWorkerError(String operation, Exception e) {
+
+        if (e instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+        }
+
+        Throwable cause = e;
+
+        if (e instanceof ExecutionException && e.getCause() != null) {
+            cause = e.getCause();
+        }
+
+        JOptionPane.showMessageDialog(
+                this,
+                operation + " failed: " + cause.getMessage(),
+                "Database Error",
+                JOptionPane.ERROR_MESSAGE
+        );
+    }
+
+    // Register patient using SwingWorker
     private void registerPatient() {
 
-        try {
+        Patient patient;
 
-            Patient patient = getPatientFromForm(0);
+        try {
+            patient = getPatientFromForm(0);
 
             if (patient == null) {
                 return;
-            }
-
-            boolean result = patientDAO.addPatient(patient);
-
-            if (result) {
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Patient registered successfully!"
-                );
-
-                clearForm();
-                loadPatients();
-
-            } else {
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Registration failed! Check for duplicate details."
-                );
             }
 
         } catch (Exception e) {
 
             JOptionPane.showMessageDialog(
                     this,
-                    "Error: " + e.getMessage()
+                    "Enter a valid age.",
+                    "Invalid Input",
+                    JOptionPane.WARNING_MESSAGE
             );
+
+            return;
         }
+
+        setBusy(true);
+
+        SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+
+            @Override
+            protected Boolean doInBackground() {
+
+                // Database operation runs in background thread
+                return patientDAO.addPatient(patient);
+            }
+
+            @Override
+            protected void done() {
+
+                // UI updates happen on Swing EDT
+                setBusy(false);
+
+                try {
+
+                    boolean result = get();
+
+                    if (result) {
+
+                        JOptionPane.showMessageDialog(
+                                PatientPanel.this,
+                                "Patient registered successfully!"
+                        );
+
+                        clearForm();
+                        loadPatients();
+
+                    } else {
+
+                        JOptionPane.showMessageDialog(
+                                PatientPanel.this,
+                                "Registration failed! Check for duplicate details."
+                        );
+                    }
+
+                } catch (InterruptedException | ExecutionException e) {
+                    showWorkerError("Patient registration", e);
+                }
+            }
+        };
+
+        worker.execute();
     }
 
-    // Update selected patient
+    // Update selected patient using SwingWorker
     private void updatePatient() {
 
         if (selectedPatientId == -1) {
@@ -400,44 +477,75 @@ public class PatientPanel extends JPanel {
             return;
         }
 
+        Patient patient;
+
         try {
 
-            Patient patient = getPatientFromForm(selectedPatientId);
+            patient = getPatientFromForm(selectedPatientId);
 
             if (patient == null) {
                 return;
-            }
-
-            boolean result = patientDAO.updatePatient(patient);
-
-            if (result) {
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Patient updated successfully!"
-                );
-
-                clearForm();
-                loadPatients();
-
-            } else {
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Patient update failed!"
-                );
             }
 
         } catch (Exception e) {
 
             JOptionPane.showMessageDialog(
                     this,
-                    "Error: " + e.getMessage()
+                    "Enter a valid age.",
+                    "Invalid Input",
+                    JOptionPane.WARNING_MESSAGE
             );
+
+            return;
         }
+
+        setBusy(true);
+
+        SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+
+            @Override
+            protected Boolean doInBackground() {
+
+                return patientDAO.updatePatient(patient);
+            }
+
+            @Override
+            protected void done() {
+
+                setBusy(false);
+
+                try {
+
+                    boolean result = get();
+
+                    if (result) {
+
+                        JOptionPane.showMessageDialog(
+                                PatientPanel.this,
+                                "Patient updated successfully!"
+                        );
+
+                        clearForm();
+                        loadPatients();
+
+                    } else {
+
+                        JOptionPane.showMessageDialog(
+                                PatientPanel.this,
+                                "Patient update failed!"
+                        );
+                    }
+
+                } catch (InterruptedException | ExecutionException e) {
+                    showWorkerError("Patient update", e);
+                }
+            }
+        };
+
+        worker.execute();
     }
 
-    // Delete selected patient
+    // Delete selected patient using SwingWorker
     private void deletePatient() {
 
         if (selectedPatientId == -1) {
@@ -457,38 +565,57 @@ public class PatientPanel extends JPanel {
                 JOptionPane.YES_NO_OPTION
         );
 
-        if (choice == JOptionPane.YES_OPTION) {
-
-            try {
-
-                boolean result = patientDAO.deletePatient(selectedPatientId);
-
-                if (result) {
-
-                    JOptionPane.showMessageDialog(
-                            this,
-                            "Patient deleted successfully!"
-                    );
-
-                    clearForm();
-                    loadPatients();
-
-                } else {
-
-                    JOptionPane.showMessageDialog(
-                            this,
-                            "Patient deletion failed!"
-                    );
-                }
-
-            } catch (Exception e) {
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Error: " + e.getMessage()
-                );
-            }
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
         }
+
+        // Store ID before starting the background operation
+        int patientId = selectedPatientId;
+
+        setBusy(true);
+
+        SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+
+            @Override
+            protected Boolean doInBackground() {
+
+                return patientDAO.deletePatient(patientId);
+            }
+
+            @Override
+            protected void done() {
+
+                setBusy(false);
+
+                try {
+
+                    boolean result = get();
+
+                    if (result) {
+
+                        JOptionPane.showMessageDialog(
+                                PatientPanel.this,
+                                "Patient deleted successfully!"
+                        );
+
+                        clearForm();
+                        loadPatients();
+
+                    } else {
+
+                        JOptionPane.showMessageDialog(
+                                PatientPanel.this,
+                                "Patient deletion failed!"
+                        );
+                    }
+
+                } catch (InterruptedException | ExecutionException e) {
+                    showWorkerError("Patient deletion", e);
+                }
+            }
+        };
+
+        worker.execute();
     }
 
     // Read patient details from the form
@@ -533,27 +660,55 @@ public class PatientPanel extends JPanel {
         );
     }
 
-    // Load all patients from database
+    // Load all patients using SwingWorker
     private void loadPatients() {
 
-        tableModel.setRowCount(0);
+        setBusy(true);
 
-        List<Patient> patients = patientDAO.getAllPatients();
+        SwingWorker<List<Patient>, Void> worker = new SwingWorker<>() {
 
-        for (Patient patient : patients) {
+            @Override
+            protected List<Patient> doInBackground() {
 
-            tableModel.addRow(new Object[]{
-                    patient.getPatientId(),
-                    patient.getName(),
-                    patient.getAge(),
-                    patient.getGender(),
-                    patient.getPhone(),
-                    patient.getEmail(),
-                    patient.getAddress()
-            });
-        }
+                // Fetch patients without blocking the GUI
+                return patientDAO.getAllPatients();
+            }
 
-        SwingUtilities.invokeLater(this::adjustTableRowHeights);
+            @Override
+            protected void done() {
+
+                setBusy(false);
+
+                try {
+
+                    List<Patient> patients = get();
+
+                    tableModel.setRowCount(0);
+
+                    for (Patient patient : patients) {
+
+                        tableModel.addRow(new Object[]{
+                                patient.getPatientId(),
+                                patient.getName(),
+                                patient.getAge(),
+                                patient.getGender(),
+                                patient.getPhone(),
+                                patient.getEmail(),
+                                patient.getAddress()
+                        });
+                    }
+
+                    SwingUtilities.invokeLater(
+                            PatientPanel.this::adjustTableRowHeights
+                    );
+
+                } catch (InterruptedException | ExecutionException e) {
+                    showWorkerError("Loading patients", e);
+                }
+            }
+        };
+
+        worker.execute();
     }
 
     // Fill form when a table row is selected
@@ -592,41 +747,19 @@ public class PatientPanel extends JPanel {
         );
     }
 
-    // Search patient by ID
+    // Search patient by ID using SwingWorker
     private void searchPatient() {
+
+        int patientId;
 
         try {
 
-            int patientId = Integer.parseInt(
+            patientId = Integer.parseInt(
                     searchField.getText().trim()
             );
 
-            Patient patient = patientDAO.getPatientById(patientId);
-
-            tableModel.setRowCount(0);
-
-            if (patient != null) {
-
-                tableModel.addRow(new Object[]{
-                        patient.getPatientId(),
-                        patient.getName(),
-                        patient.getAge(),
-                        patient.getGender(),
-                        patient.getPhone(),
-                        patient.getEmail(),
-                        patient.getAddress()
-                });
-
-                patientTable.setRowSelectionInterval(0, 0);
-
-            } else {
-
-                clearForm();
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Patient not found!"
-                );
+            if (patientId <= 0) {
+                throw new NumberFormatException();
             }
 
         } catch (NumberFormatException e) {
@@ -635,7 +768,64 @@ public class PatientPanel extends JPanel {
                     this,
                     "Enter a valid patient ID!"
             );
+
+            return;
         }
+
+        setBusy(true);
+
+        SwingWorker<Patient, Void> worker = new SwingWorker<>() {
+
+            @Override
+            protected Patient doInBackground() {
+
+                return patientDAO.getPatientById(patientId);
+            }
+
+            @Override
+            protected void done() {
+
+                setBusy(false);
+
+                try {
+
+                    Patient patient = get();
+
+                    tableModel.setRowCount(0);
+
+                    if (patient != null) {
+
+                        tableModel.addRow(new Object[]{
+                                patient.getPatientId(),
+                                patient.getName(),
+                                patient.getAge(),
+                                patient.getGender(),
+                                patient.getPhone(),
+                                patient.getEmail(),
+                                patient.getAddress()
+                        });
+
+                        patientTable.setRowSelectionInterval(0, 0);
+
+                    } else {
+
+                        clearForm();
+
+                        JOptionPane.showMessageDialog(
+                                PatientPanel.this,
+                                "Patient not found!"
+                        );
+                    }
+
+                    adjustTableRowHeights();
+
+                } catch (InterruptedException | ExecutionException e) {
+                    showWorkerError("Patient search", e);
+                }
+            }
+        };
+
+        worker.execute();
     }
 
     // Clear form and selection
