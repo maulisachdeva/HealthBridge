@@ -1,0 +1,27 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run HealthBridge",
+            "type": "shell",
+            "command": "java",
+            "args": [
+                "-cp",
+                "target/classes;${env:USERPROFILE}\\.m2\\repository\\com\\mysql\\mysql-connector-j\\9.5.0\\mysql-connector-j-9.5.0.jar",
+                "com.healthbridge.Main"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "DB_USER": "ayaan_hb",
+                    "DB_PASSWORD": "HbAyaan_Test@2026!"
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}

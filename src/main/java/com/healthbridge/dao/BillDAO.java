@@ -9,7 +9,7 @@ import java.util.List;
 
 public class BillDAO {
 
-    // Ayaan - 10/11/26 - 
+    // Ayaan - 10/11/26
     // 1. CREATE NEW BILL
     public boolean createBill(Bill bill) {
 
@@ -35,18 +35,28 @@ public class BillDAO {
             int rows = pst.executeUpdate();
 
             if (rows > 0) {
+
                 try (ResultSet rs = pst.getGeneratedKeys()) {
                     if (rs.next()) {
                         bill.setBillId(rs.getInt(1));
                     }
                 }
+
+                System.out.println("Bill generated successfully!");
                 return true;
             }
 
         } catch (SQLException e) {
-    System.out.println("ERROR WHILE CREATING BILL:");
-    e.printStackTrace();
-}
+
+            System.out.println("\n========== BILL GENERATION ERROR ==========");
+            System.out.println("Error Message: " + e.getMessage());
+            System.out.println("SQL State: " + e.getSQLState());
+            System.out.println("Error Code: " + e.getErrorCode());
+
+            e.printStackTrace();
+
+            System.out.println("============================================\n");
+        }
 
         return false;
     }
@@ -71,14 +81,14 @@ public class BillDAO {
 
         } catch (SQLException e) {
             System.out.println("Error fetching bill: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return null;
     }
 
 
-    //Ayaan 13/11/26 - 
-    //  3. GET ALL BILLS
+    // 3. GET ALL BILLS
     public List<Bill> getAllBills() {
 
         List<Bill> bills = new ArrayList<>();
@@ -95,6 +105,7 @@ public class BillDAO {
 
         } catch (SQLException e) {
             System.out.println("Error fetching bills: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return bills;
@@ -122,13 +133,13 @@ public class BillDAO {
 
         } catch (SQLException e) {
             System.out.println("Error searching bills: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return bills;
     }
 
 
-    // Ayaan 15/11/26 - 
     // 5. UPDATE PAYMENT STATUS
     public boolean updatePaymentStatus(int billId, String status) {
 
@@ -144,6 +155,7 @@ public class BillDAO {
 
         } catch (SQLException e) {
             System.out.println("Error updating bill status: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return false;
@@ -164,6 +176,7 @@ public class BillDAO {
 
         } catch (SQLException e) {
             System.out.println("Error deleting bill: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return false;
@@ -179,87 +192,85 @@ public class BillDAO {
         bill.setPatientId(rs.getInt("patient_id"));
         bill.setAppointmentId(rs.getInt("appointment_id"));
 
-        bill.setConsultationCharge(
-                rs.getDouble("consultation_charge"));
+        bill.setConsultationCharge(rs.getDouble("consultation_charge"));
+        bill.setMedicineCharge(rs.getDouble("medicine_charge"));
+        bill.setOtherCharge(rs.getDouble("other_charge"));
+        bill.setTotalAmount(rs.getDouble("total_amount"));
 
-        bill.setMedicineCharge(
-                rs.getDouble("medicine_charge"));
-
-        bill.setOtherCharge(
-                rs.getDouble("other_charge"));
-
-        bill.setTotalAmount(
-                rs.getDouble("total_amount"));
-
-        bill.setPaymentStatus(
-                rs.getString("payment_status"));
+        bill.setPaymentStatus(rs.getString("payment_status"));
 
         bill.setBillDate(
-                rs.getDate("bill_date").toLocalDate());
+                rs.getDate("bill_date").toLocalDate()
+        );
 
         return bill;
     }
 
+
     // 8. GET TOTAL NUMBER OF BILLS
-    //ayaan - 21 nov 2026
-public int getTotalBillCount() {
+    public int getTotalBillCount() {
 
-    String sql = "SELECT COUNT(*) FROM bills";
+        String sql = "SELECT COUNT(*) FROM bills";
 
-    try (Connection con = DBConnection.getConnection();
-         PreparedStatement pst = con.prepareStatement(sql);
-         ResultSet rs = pst.executeQuery()) {
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
 
-        if (rs.next()) {
-            return rs.getInt(1);
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error counting bills: " + e.getMessage());
+            e.printStackTrace();
         }
 
-    } catch (SQLException e) {
-        System.out.println("Error counting bills: " + e.getMessage());
+        return 0;
     }
 
-    return 0;
-}
-// 9. GET TOTAL REVENUE
-//ayaan - 23 nov 2026
-public double getTotalRevenue() {
 
-    String sql = "SELECT COALESCE(SUM(total_amount), 0) " +
-                 "FROM bills WHERE payment_status = 'PAID'";
+    // 9. GET TOTAL REVENUE
+    public double getTotalRevenue() {
 
-    try (Connection con = DBConnection.getConnection();
-         PreparedStatement pst = con.prepareStatement(sql);
-         ResultSet rs = pst.executeQuery()) {
+        String sql = "SELECT COALESCE(SUM(total_amount), 0) " +
+                "FROM bills WHERE payment_status = 'PAID'";
 
-        if (rs.next()) {
-            return rs.getDouble(1);
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+
+            if (rs.next()) {
+                return rs.getDouble(1);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error calculating revenue: " + e.getMessage());
+            e.printStackTrace();
         }
 
-    } catch (SQLException e) {
-        System.out.println("Error calculating revenue: " + e.getMessage());
+        return 0.0;
     }
 
-    return 0.0;
-}
-// 10. GET PENDING AMOUNT
-public double getPendingAmount() {
 
-    String sql = "SELECT COALESCE(SUM(total_amount), 0) " +
-                 "FROM bills WHERE payment_status = 'PENDING'";
+    // 10. GET PENDING AMOUNT
+    public double getPendingAmount() {
 
-    try (Connection con = DBConnection.getConnection();
-         PreparedStatement pst = con.prepareStatement(sql);
-         ResultSet rs = pst.executeQuery()) {
+        String sql = "SELECT COALESCE(SUM(total_amount), 0) " +
+                "FROM bills WHERE payment_status = 'PENDING'";
 
-        if (rs.next()) {
-            return rs.getDouble(1);
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+
+            if (rs.next()) {
+                return rs.getDouble(1);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error calculating pending amount: " + e.getMessage());
+            e.printStackTrace();
         }
 
-    } catch (SQLException e) {
-        System.out.println("Error calculating pending amount: " + e.getMessage());
+        return 0.0;
     }
-
-    return 0.0;
 }
-}
-
