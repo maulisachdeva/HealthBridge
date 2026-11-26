@@ -264,16 +264,19 @@ public class PrescriptionPanel extends JPanel {
                 return;
             }
 
-            // Validate field lengths
-            if (medicine.length() > 100 ||
+            // Validate field lengths according to MySQL schema
+            if (medicine.length() > 150 ||
                     dosage.length() > 100 ||
                     frequency.length() > 100 ||
                     duration.length() > 100 ||
-                    instructions.length() > 500) {
+                    instructions.length() > 255) {
 
                 JOptionPane.showMessageDialog(
                         this,
-                        "One or more fields exceed the allowed length."
+                        "Medicine name must not exceed 150 characters, " +
+                                "dosage, frequency and duration must not exceed " +
+                                "100 characters, and instructions must not exceed " +
+                                "255 characters."
                 );
 
                 return;
@@ -307,7 +310,8 @@ public class PrescriptionPanel extends JPanel {
 
                 JOptionPane.showMessageDialog(
                         this,
-                        "Unable to save prescription. Check whether the Medical Record ID exists."
+                        "Unable to save prescription. " +
+                                "Check whether the Medical Record ID exists."
                 );
             }
 
