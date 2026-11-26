@@ -59,32 +59,40 @@ public class MainFrame extends JFrame {
         JButton doctorButton = createNavButton("Doctor Management");
         JButton appointmentButton = createNavButton("Appointments");
         JButton recordsButton = createNavButton("Medical Records");
+        JButton prescriptionButton = createNavButton("Prescriptions");
         JButton billingButton = createNavButton("Billing & Reports");
 
+        // Navigation actions
         dashboardButton.addActionListener(e -> showDashboard());
         patientButton.addActionListener(e -> showPatientManagement());
         doctorButton.addActionListener(e -> showDoctorManagement());
         appointmentButton.addActionListener(e -> showAppointmentManagement());
         recordsButton.addActionListener(e -> showMedicalRecords());
+        prescriptionButton.addActionListener(e -> showPrescriptions());
         billingButton.addActionListener(e -> showBillingManagement());
 
+        // Add buttons to sidebar
         sidebar.add(dashboardButton);
         sidebar.add(patientButton);
         sidebar.add(doctorButton);
         sidebar.add(appointmentButton);
         sidebar.add(recordsButton);
+        sidebar.add(prescriptionButton);
         sidebar.add(billingButton);
 
-        // Make sidebar scrollable if vertical space is limited
+        // Make sidebar scrollable
         JScrollPane sidebarScroll = new JScrollPane(sidebar);
 
         sidebarScroll.setPreferredSize(new Dimension(230, 700));
+
         sidebarScroll.setHorizontalScrollBarPolicy(
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
         );
+
         sidebarScroll.setVerticalScrollBarPolicy(
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
         );
+
         sidebarScroll.setBorder(null);
 
         return createSidebarWrapper(sidebarScroll);
@@ -113,9 +121,11 @@ public class MainFrame extends JFrame {
         button.setAlignmentX(Component.LEFT_ALIGNMENT);
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 55));
         button.setPreferredSize(new Dimension(220, 55));
+
         button.setBorder(
                 BorderFactory.createEmptyBorder(12, 20, 12, 8)
         );
+
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         return button;
@@ -128,17 +138,20 @@ public class MainFrame extends JFrame {
 
         JPanel content = new JPanel(new BorderLayout(15, 15));
         content.setBackground(BACKGROUND);
+
         content.setBorder(
                 BorderFactory.createEmptyBorder(25, 30, 25, 30)
         );
 
         JLabel heading = new JLabel("Welcome to HealthBridge");
+
         heading.setFont(new Font("Arial", Font.BOLD, 28));
         heading.setForeground(DARK_BLUE);
 
         JLabel subtitle = new JLabel(
                 "<html>Smart Clinic Management and Queue Automation System</html>"
         );
+
         subtitle.setFont(new Font("Arial", Font.PLAIN, 15));
         subtitle.setForeground(Color.GRAY);
 
@@ -154,7 +167,9 @@ public class MainFrame extends JFrame {
         content.add(header, BorderLayout.NORTH);
 
         JPanel cards = new JPanel(new GridLayout(0, 2, 20, 20));
+
         cards.setBackground(BACKGROUND);
+
         cards.setBorder(
                 BorderFactory.createEmptyBorder(35, 0, 0, 0)
         );
@@ -170,6 +185,7 @@ public class MainFrame extends JFrame {
         ));
 
         JPanel cardContainer = new JPanel(new BorderLayout());
+
         cardContainer.setBackground(BACKGROUND);
         cardContainer.add(cards, BorderLayout.NORTH);
 
@@ -185,6 +201,7 @@ public class MainFrame extends JFrame {
     private JPanel createDashboardCard(String title, String description) {
 
         JPanel card = new JPanel();
+
         card.setBackground(WHITE);
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 
@@ -200,6 +217,7 @@ public class MainFrame extends JFrame {
         );
 
         JLabel titleLabel = new JLabel(title);
+
         titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
         titleLabel.setForeground(DARK_BLUE);
 
@@ -266,19 +284,24 @@ public class MainFrame extends JFrame {
 
         mainContent.removeAll();
 
-        JPanel recordsPanel = new JPanel(new BorderLayout());
-        recordsPanel.setBackground(BACKGROUND);
-
-        JLabel message = new JLabel(
-                "Medical Records module",
-                SwingConstants.CENTER
+        mainContent.add(
+                new MedicalRecordPanel(),
+                BorderLayout.CENTER
         );
-        message.setFont(new Font("Arial", Font.BOLD, 22));
-        message.setForeground(DARK_BLUE);
 
-        recordsPanel.add(message, BorderLayout.CENTER);
+        mainContent.revalidate();
+        mainContent.repaint();
+    }
 
-        mainContent.add(recordsPanel, BorderLayout.CENTER);
+    // Show prescriptions
+    private void showPrescriptions() {
+
+        mainContent.removeAll();
+
+        mainContent.add(
+                new PrescriptionPanel(),
+                BorderLayout.CENTER
+        );
 
         mainContent.revalidate();
         mainContent.repaint();
