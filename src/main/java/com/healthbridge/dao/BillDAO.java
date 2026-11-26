@@ -9,7 +9,7 @@ import java.util.List;
 
 public class BillDAO {
 
-    // 1. Create a new bill
+    // 1. CREATE NEW BILL
     public boolean createBill(Bill bill) {
 
         String sql = "INSERT INTO bills " +
@@ -18,211 +18,270 @@ public class BillDAO {
                 "payment_status, bill_date) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-        try (Connection connection = DBConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(
                      sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            statement.setInt(1, bill.getPatientId());
-            statement.setInt(2, bill.getAppointmentId());
-            statement.setDouble(3, bill.getConsultationCharge());
-            statement.setDouble(4, bill.getMedicineCharge());
-            statement.setDouble(5, bill.getOtherCharge());
-            statement.setDouble(6, bill.getTotalAmount());
-            statement.setString(7, bill.getPaymentStatus());
-            statement.setDate(8, Date.valueOf(bill.getBillDate()));
+            pst.setInt(1, bill.getPatientId());
+            pst.setInt(2, bill.getAppointmentId());
+            pst.setDouble(3, bill.getConsultationCharge());
+            pst.setDouble(4, bill.getMedicineCharge());
+            pst.setDouble(5, bill.getOtherCharge());
+            pst.setDouble(6, bill.getTotalAmount());
+            pst.setString(7, bill.getPaymentStatus());
+            pst.setDate(8, Date.valueOf(bill.getBillDate()));
 
-            int rows = statement.executeUpdate();
+            int rows = pst.executeUpdate();
 
             if (rows > 0) {
-                try (ResultSet keys = statement.getGeneratedKeys()) {
-                    if (keys.next()) {
-                        bill.setBillId(keys.getInt(1));
+
+                try (ResultSet rs = pst.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        bill.setBillId(rs.getInt(1));
                     }
                 }
+
+                System.out.println("Bill generated successfully!");
                 return true;
             }
 
         } catch (SQLException e) {
-            System.out.println("Error creating bill: " + e.getMessage());
+
+            System.out.println("\n========== BILL GENERATION ERROR ==========");
+            System.out.println("Error Message: " + e.getMessage());
+            System.out.println("SQL State: " + e.getSQLState());
+            System.out.println("Error Code: " + e.getErrorCode());
+
+            e.printStackTrace();
+
+            System.out.println("============================================\n");
         }
 
         return false;
     }
 
-    // 2. Get bill by ID
+
+    // 2. GET BILL USING BILL ID
     public Bill getBillById(int billId) {
 
         String sql = "SELECT * FROM bills WHERE bill_id = ?";
 
-        try (Connection connection = DBConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql)) {
 
-            statement.setInt(1, billId);
+            pst.setInt(1, billId);
 
-            try (ResultSet result = statement.executeQuery()) {
-                if (result.next()) {
-                    return extractBill(result);
+            try (ResultSet rs = pst.executeQuery()) {
+
+                if (rs.next()) {
+                    return extractBill(rs);
                 }
             }
 
         } catch (SQLException e) {
             System.out.println("Error fetching bill: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return null;
     }
 
-    // 3. Get all bills
+
+    // 3. GET ALL BILLS
     public List<Bill> getAllBills() {
 
         List<Bill> bills = new ArrayList<>();
 
-        String sql = "SELECT * FROM bills ORDER BY bill_date DESC";
+        String sql = "SELECT * FROM bills ORDER BY bill_id DESC";
 
-        try (Connection connection = DBConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet result = statement.executeQuery()) {
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
 
-            while (result.next()) {
-                bills.add(extractBill(result));
+            while (rs.next()) {
+                bills.add(extractBill(rs));
             }
 
         } catch (SQLException e) {
             System.out.println("Error fetching bills: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return bills;
     }
 
-    // 4. Get bills by patient ID
+
+    // 4. SEARCH BILLS USING PATIENT ID
     public List<Bill> getBillsByPatientId(int patientId) {
 
         List<Bill> bills = new ArrayList<>();
 
         String sql = "SELECT * FROM bills WHERE patient_id = ?";
 
-        try (Connection connection = DBConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql)) {
 
-            statement.setInt(1, patientId);
+            pst.setInt(1, patientId);
 
-            try (ResultSet result = statement.executeQuery()) {
-                while (result.next()) {
-                    bills.add(extractBill(result));
+            try (ResultSet rs = pst.executeQuery()) {
+
+                while (rs.next()) {
+                    bills.add(extractBill(rs));
                 }
             }
 
         } catch (SQLException e) {
-            System.out.println("Error fetching patient bills: " + e.getMessage());
+            System.out.println("Error searching bills: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return bills;
     }
 
-    // 5. Update payment status
+
+    // 5. UPDATE PAYMENT STATUS
     public boolean updatePaymentStatus(int billId, String status) {
 
         String sql = "UPDATE bills SET payment_status = ? WHERE bill_id = ?";
 
-        try (Connection connection = DBConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql)) {
 
-            statement.setString(1, status);
-            statement.setInt(2, billId);
+            pst.setString(1, status);
+            pst.setInt(2, billId);
 
-            return statement.executeUpdate() > 0;
+            return pst.executeUpdate() > 0;
 
         } catch (SQLException e) {
             System.out.println("Error updating bill status: " + e.getMessage());
+            e.printStackTrace();
         }
 
         return false;
     }
 
-    // 6. Get total revenue from fully paid bills
-    public double getTotalRevenue() {
 
-        String sql = "SELECT COALESCE(SUM(total_amount), 0) " +
-                "FROM bills WHERE payment_status = 'PAID'";
+    // 6. DELETE BILL
+    public boolean deleteBill(int billId) {
 
-        try (Connection connection = DBConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet result = statement.executeQuery()) {
+        String sql = "DELETE FROM bills WHERE bill_id = ?";
 
-            if (result.next()) {
-                return result.getDouble(1);
-            }
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql)) {
 
-        } catch (SQLException e) {
-            System.out.println("Error calculating revenue: " + e.getMessage());
-        }
+            pst.setInt(1, billId);
 
-        return 0;
-    }
-
-    // 7. Get pending amount
-    public double getPendingAmount() {
-
-        String sql = "SELECT COALESCE(SUM(total_amount), 0) " +
-                "FROM bills WHERE payment_status = 'PENDING'";
-
-        try (Connection connection = DBConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet result = statement.executeQuery()) {
-
-            if (result.next()) {
-                return result.getDouble(1);
-            }
+            return pst.executeUpdate() > 0;
 
         } catch (SQLException e) {
-            System.out.println("Error calculating pending amount: " + e.getMessage());
+            System.out.println("Error deleting bill: " + e.getMessage());
+            e.printStackTrace();
         }
 
-        return 0;
+        return false;
     }
 
-    // 8. Get total bill count
-    public int getTotalBillCount() {
 
-        String sql = "SELECT COUNT(*) FROM bills";
-
-        try (Connection connection = DBConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet result = statement.executeQuery()) {
-
-            if (result.next()) {
-                return result.getInt(1);
-            }
-
-        } catch (SQLException e) {
-            System.out.println("Error counting bills: " + e.getMessage());
-        }
-
-        return 0;
-    }
-
-    // Helper method to convert ResultSet into Bill object
-    private Bill extractBill(ResultSet result) throws SQLException {
+    // 7. CONVERT RESULTSET INTO BILL OBJECT
+    private Bill extractBill(ResultSet rs) throws SQLException {
 
         Bill bill = new Bill();
 
-        bill.setBillId(result.getInt("bill_id"));
-        bill.setPatientId(result.getInt("patient_id"));
-        bill.setAppointmentId(result.getInt("appointment_id"));
+        bill.setBillId(rs.getInt("bill_id"));
+        bill.setPatientId(rs.getInt("patient_id"));
+        bill.setAppointmentId(rs.getInt("appointment_id"));
 
-        bill.setConsultationCharge(result.getDouble("consultation_charge"));
-        bill.setMedicineCharge(result.getDouble("medicine_charge"));
-        bill.setOtherCharge(result.getDouble("other_charge"));
-        bill.setTotalAmount(result.getDouble("total_amount"));
+        bill.setConsultationCharge(rs.getDouble("consultation_charge"));
+        bill.setMedicineCharge(rs.getDouble("medicine_charge"));
+        bill.setOtherCharge(rs.getDouble("other_charge"));
+        bill.setTotalAmount(rs.getDouble("total_amount"));
 
-        bill.setPaymentStatus(result.getString("payment_status"));
+        bill.setPaymentStatus(rs.getString("payment_status"));
 
-        Date billDate = result.getDate("bill_date");
+        Date billDate = rs.getDate("bill_date");
 
         if (billDate != null) {
             bill.setBillDate(billDate.toLocalDate());
         }
 
         return bill;
+    }
+
+
+    // 8. GET TOTAL NUMBER OF BILLS
+    public int getTotalBillCount() {
+
+        String sql = "SELECT COUNT(*) FROM bills";
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error counting bills: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return 0;
+    }
+
+
+    // 9. GET TOTAL REVENUE
+    public double getTotalRevenue() {
+
+        String sql =
+                "SELECT COALESCE(SUM(amount_paid), 0) " +
+                "FROM payments WHERE payment_status = 'SUCCESS'";
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+
+            if (rs.next()) {
+                return rs.getDouble(1);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error calculating revenue: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return 0.0;
+    }
+
+
+    // 10. GET PENDING AMOUNT INCLUDING PARTIAL PAYMENTS
+    public double getPendingAmount() {
+
+        String sql =
+                "SELECT COALESCE(SUM(b.total_amount - " +
+                "COALESCE(p.paid_amount, 0)), 0) " +
+                "FROM bills b " +
+                "LEFT JOIN (" +
+                "SELECT bill_id, SUM(amount_paid) AS paid_amount " +
+                "FROM payments " +
+                "WHERE payment_status = 'SUCCESS' " +
+                "GROUP BY bill_id" +
+                ") p ON b.bill_id = p.bill_id " +
+                "WHERE b.payment_status != 'CANCELLED'";
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+
+            if (rs.next()) {
+                return rs.getDouble(1);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error calculating pending amount: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return 0.0;
     }
 }
