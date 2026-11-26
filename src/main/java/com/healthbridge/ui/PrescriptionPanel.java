@@ -1,3 +1,4 @@
+
 package com.healthbridge.ui;
 
 import com.healthbridge.dao.PrescriptionDAO;
@@ -47,7 +48,6 @@ public class PrescriptionPanel extends JPanel {
         centerPanel.setBackground(BACKGROUND);
 
         centerPanel.add(createForm(), BorderLayout.NORTH);
-
         centerPanel.add(createHistoryTable(), BorderLayout.CENTER);
 
         add(centerPanel, BorderLayout.CENTER);
@@ -219,9 +219,30 @@ public class PrescriptionPanel extends JPanel {
 
         try {
 
-            int recordId = Integer.parseInt(
-                    recordIdField.getText().trim()
-            );
+            // Validate Record ID
+            String recordIdText = recordIdField.getText().trim();
+
+            if (recordIdText.isEmpty()) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Please enter Medical Record ID."
+                );
+
+                return;
+            }
+
+            int recordId = Integer.parseInt(recordIdText);
+
+            if (recordId <= 0) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Medical Record ID must be positive."
+                );
+
+                return;
+            }
 
             String medicine = medicineField.getText().trim();
             String dosage = dosageField.getText().trim();
@@ -229,6 +250,7 @@ public class PrescriptionPanel extends JPanel {
             String duration = durationField.getText().trim();
             String instructions = instructionsArea.getText().trim();
 
+            // Validate required fields
             if (medicine.isEmpty() ||
                     dosage.isEmpty() ||
                     frequency.isEmpty() ||
@@ -237,6 +259,21 @@ public class PrescriptionPanel extends JPanel {
                 JOptionPane.showMessageDialog(
                         this,
                         "Please fill all required fields!"
+                );
+
+                return;
+            }
+
+            // Validate field lengths
+            if (medicine.length() > 100 ||
+                    dosage.length() > 100 ||
+                    frequency.length() > 100 ||
+                    duration.length() > 100 ||
+                    instructions.length() > 500) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "One or more fields exceed the allowed length."
                 );
 
                 return;
@@ -270,7 +307,7 @@ public class PrescriptionPanel extends JPanel {
 
                 JOptionPane.showMessageDialog(
                         this,
-                        "Unable to save prescription!"
+                        "Unable to save prescription. Check whether the Medical Record ID exists."
                 );
             }
 
@@ -278,7 +315,7 @@ public class PrescriptionPanel extends JPanel {
 
             JOptionPane.showMessageDialog(
                     this,
-                    "Please enter a valid Medical Record ID!"
+                    "Please enter a valid numeric Medical Record ID!"
             );
         }
     }
@@ -289,14 +326,42 @@ public class PrescriptionPanel extends JPanel {
 
         try {
 
-            int recordId = Integer.parseInt(
-                    recordIdField.getText().trim()
-            );
+            String recordIdText = recordIdField.getText().trim();
+
+            if (recordIdText.isEmpty()) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Please enter Medical Record ID."
+                );
+
+                return;
+            }
+
+            int recordId = Integer.parseInt(recordIdText);
+
+            if (recordId <= 0) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Medical Record ID must be positive."
+                );
+
+                return;
+            }
 
             List<Prescription> prescriptions =
                     prescriptionDAO.getPrescriptionsByRecordId(recordId);
 
             displayPrescriptions(prescriptions);
+
+            if (prescriptions.isEmpty()) {
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "No prescriptions found for this Medical Record ID."
+                );
+            }
 
         } catch (NumberFormatException e) {
 
