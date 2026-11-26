@@ -9,7 +9,6 @@ import java.util.List;
 
 public class BillDAO {
 
-    // Ayaan - 10/11/26
     // 1. CREATE NEW BILL
     public boolean createBill(Bill bill) {
 
@@ -199,9 +198,11 @@ public class BillDAO {
 
         bill.setPaymentStatus(rs.getString("payment_status"));
 
-        bill.setBillDate(
-                rs.getDate("bill_date").toLocalDate()
-        );
+        Date billDate = rs.getDate("bill_date");
+
+        if (billDate != null) {
+            bill.setBillDate(billDate.toLocalDate());
+        }
 
         return bill;
     }
@@ -232,55 +233,55 @@ public class BillDAO {
     // 9. GET TOTAL REVENUE
     public double getTotalRevenue() {
 
-    String sql =
-            "SELECT COALESCE(SUM(amount_paid), 0) " +
-            "FROM payments WHERE payment_status = 'SUCCESS'";
+        String sql =
+                "SELECT COALESCE(SUM(amount_paid), 0) " +
+                "FROM payments WHERE payment_status = 'SUCCESS'";
 
-    try (Connection con = DBConnection.getConnection();
-         PreparedStatement pst = con.prepareStatement(sql);
-         ResultSet rs = pst.executeQuery()) {
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
 
-        if (rs.next()) {
-            return rs.getDouble(1);
+            if (rs.next()) {
+                return rs.getDouble(1);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error calculating revenue: " + e.getMessage());
+            e.printStackTrace();
         }
 
-    } catch (SQLException e) {
-        System.out.println("Error calculating revenue: " + e.getMessage());
-        e.printStackTrace();
+        return 0.0;
     }
 
-    return 0.0;
-}
 
+    // 10. GET PENDING AMOUNT INCLUDING PARTIAL PAYMENTS
+    public double getPendingAmount() {
 
-    // 10. GET PENDING AMOUNT
-   public double getPendingAmount() {
+        String sql =
+                "SELECT COALESCE(SUM(b.total_amount - " +
+                "COALESCE(p.paid_amount, 0)), 0) " +
+                "FROM bills b " +
+                "LEFT JOIN (" +
+                "SELECT bill_id, SUM(amount_paid) AS paid_amount " +
+                "FROM payments " +
+                "WHERE payment_status = 'SUCCESS' " +
+                "GROUP BY bill_id" +
+                ") p ON b.bill_id = p.bill_id " +
+                "WHERE b.payment_status != 'CANCELLED'";
 
-    String sql =
-            "SELECT COALESCE(SUM(b.total_amount - " +
-            "COALESCE(p.paid_amount, 0)), 0) " +
-            "FROM bills b " +
-            "LEFT JOIN (" +
-            "SELECT bill_id, SUM(amount_paid) AS paid_amount " +
-            "FROM payments " +
-            "WHERE payment_status = 'SUCCESS' " +
-            "GROUP BY bill_id" +
-            ") p ON b.bill_id = p.bill_id " +
-            "WHERE b.payment_status != 'CANCELLED'";
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
 
-    try (Connection con = DBConnection.getConnection();
-         PreparedStatement pst = con.prepareStatement(sql);
-         ResultSet rs = pst.executeQuery()) {
+            if (rs.next()) {
+                return rs.getDouble(1);
+            }
 
-        if (rs.next()) {
-            return rs.getDouble(1);
+        } catch (SQLException e) {
+            System.out.println("Error calculating pending amount: " + e.getMessage());
+            e.printStackTrace();
         }
 
-    } catch (SQLException e) {
-        System.out.println("Error calculating pending amount: " + e.getMessage());
-        e.printStackTrace();
+        return 0.0;
     }
-
-    return 0.0;
-}
 }

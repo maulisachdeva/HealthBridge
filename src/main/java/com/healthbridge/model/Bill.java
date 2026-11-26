@@ -20,7 +20,23 @@ public class Bill {
     public Bill() {
     }
 
-    // Parameterized Constructor
+    // Parameterized Constructor - 5 parameters
+    public Bill(int patientId, int appointmentId,
+                double consultationCharge,
+                double medicineCharge,
+                double otherCharge) {
+
+        this(
+                patientId,
+                appointmentId,
+                consultationCharge,
+                medicineCharge,
+                otherCharge,
+                LocalDate.now()
+        );
+    }
+
+    // Parameterized Constructor - 6 parameters
     public Bill(int patientId, int appointmentId,
                 double consultationCharge,
                 double medicineCharge,
@@ -38,7 +54,7 @@ public class Bill {
                 + otherCharge;
 
         this.paymentStatus = "PENDING";
-        this.billDate = billDate;
+        this.billDate = billDate != null ? billDate : LocalDate.now();
     }
 
     // Getters and Setters

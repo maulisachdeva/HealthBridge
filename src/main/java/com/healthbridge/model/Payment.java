@@ -29,7 +29,10 @@ public class Payment {
         this.paymentMethod = paymentMethod;
         this.transactionReference = transactionReference;
         this.paymentStatus = "SUCCESS";
+        this.paymentDate = LocalDateTime.now();
     }
+
+    // Getters and Setters
 
     public int getPaymentId() {
         return paymentId;

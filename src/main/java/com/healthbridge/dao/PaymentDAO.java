@@ -3,8 +3,9 @@ package com.healthbridge.dao;
 import com.healthbridge.model.Payment;
 import com.healthbridge.util.DBConnection;
 
-import java.sql.*;
 import java.math.BigDecimal;
+import java.sql.*;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,6 +45,10 @@ public class PaymentDAO {
 
         try (Connection con = DBConnection.getConnection()) {
 
+            if (con == null) {
+                return false;
+            }
+
             con.setAutoCommit(false);
 
             try {
@@ -75,9 +80,7 @@ public class PaymentDAO {
                     pst.setInt(1, payment.getBillId());
 
                     try (ResultSet rs = pst.executeQuery()) {
-
                         rs.next();
-
                         paidAmount = rs.getBigDecimal(1);
                     }
                 }
@@ -109,8 +112,7 @@ public class PaymentDAO {
                 }
 
                 // STEP 4: Prevent duplicate transaction references
-                String reference =
-                        payment.getTransactionReference();
+                String reference = payment.getTransactionReference();
 
                 if (reference != null && !reference.trim().isEmpty()) {
 
@@ -122,7 +124,6 @@ public class PaymentDAO {
                         try (ResultSet rs = pst.executeQuery()) {
 
                             if (rs.next() && rs.getInt(1) > 0) {
-
                                 throw new SQLException(
                                         "Duplicate transaction reference!"
                                 );
@@ -154,7 +155,7 @@ public class PaymentDAO {
                     }
                 }
 
-                // STEP 6: Calculate updated balance
+                // STEP 6: Calculate updated bill status
                 BigDecimal newPaidAmount =
                         paidAmount.add(paymentAmount);
 
@@ -180,15 +181,13 @@ public class PaymentDAO {
                     pst.executeUpdate();
                 }
 
-                // STEP 8: Commit
+                // STEP 8: Commit transaction
                 con.commit();
 
                 payment.setPaymentStatus("SUCCESS");
+                payment.setPaymentDate(LocalDateTime.now());
 
-                System.out.println(
-                        "Payment recorded successfully!"
-                );
-
+                System.out.println("Payment recorded successfully!");
                 System.out.println("Bill Status: " + status);
 
                 return true;
@@ -299,7 +298,7 @@ public class PaymentDAO {
         } catch (SQLException e) {
 
             System.out.println(
-                    "Error searching payments: " + e.getMessage()
+                    "Error fetching bill payments: " + e.getMessage()
             );
         }
 
@@ -307,7 +306,7 @@ public class PaymentDAO {
     }
 
 
-    // 5. GET TOTAL PAID AMOUNT
+    // 5. GET TOTAL SUCCESSFUL PAYMENT AMOUNT
     public double getTotalPaidAmount() {
 
         String sql =
@@ -325,8 +324,7 @@ public class PaymentDAO {
         } catch (SQLException e) {
 
             System.out.println(
-                    "Error calculating total payments: "
-                            + e.getMessage()
+                    "Error calculating total payments: " + e.getMessage()
             );
         }
 
@@ -334,10 +332,12 @@ public class PaymentDAO {
     }
 
 
-    // 6. GET TOTAL PAYMENT COUNT
+    // 6. GET TOTAL SUCCESSFUL PAYMENT COUNT
     public int getTotalPaymentCount() {
 
-        String sql = "SELECT COUNT(*) FROM payments";
+        String sql =
+                "SELECT COUNT(*) FROM payments " +
+                "WHERE payment_status = 'SUCCESS'";
 
         try (Connection con = DBConnection.getConnection();
              PreparedStatement pst = con.prepareStatement(sql);
@@ -372,12 +372,6 @@ public class PaymentDAO {
                 rs.getString("payment_method")
         );
 
-        Timestamp timestamp = rs.getTimestamp("payment_date");
-
-        if (timestamp != null) {
-            payment.setPaymentDate(timestamp.toLocalDateTime());
-        }
-
         payment.setTransactionReference(
                 rs.getString("transaction_reference")
         );
@@ -385,6 +379,12 @@ public class PaymentDAO {
         payment.setPaymentStatus(
                 rs.getString("payment_status")
         );
+
+        Timestamp timestamp = rs.getTimestamp("payment_date");
+
+        if (timestamp != null) {
+            payment.setPaymentDate(timestamp.toLocalDateTime());
+        }
 
         return payment;
     }
