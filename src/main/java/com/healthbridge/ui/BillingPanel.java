@@ -21,6 +21,7 @@ public class BillingPanel extends JPanel {
     private JLabel pendingLabel;
 
     private DefaultTableModel tableModel;
+    private JTable billTable;
 
     public BillingPanel() {
 
@@ -39,7 +40,7 @@ public class BillingPanel extends JPanel {
         refreshData();
     }
 
-    // Header
+    // HEADER
     private JPanel createHeader() {
 
         JPanel header = new JPanel(new BorderLayout());
@@ -59,18 +60,18 @@ public class BillingPanel extends JPanel {
         subtitle.setForeground(Color.GRAY);
 
         JPanel textPanel = new JPanel();
-        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+
+        textPanel.setLayout(
+                new BoxLayout(textPanel, BoxLayout.Y_AXIS)
+        );
+
         textPanel.setBackground(BACKGROUND);
 
         textPanel.add(title);
         textPanel.add(Box.createVerticalStrut(8));
         textPanel.add(subtitle);
 
-        JButton generateButton = new JButton("Generate New Bill");
-
-        generateButton.setBackground(DARK_BLUE);
-        generateButton.setForeground(WHITE);
-        generateButton.setFocusPainted(false);
+        JButton generateButton = createButton("Generate New Bill");
 
         generateButton.addActionListener(e -> openGenerateBill());
 
@@ -80,17 +81,19 @@ public class BillingPanel extends JPanel {
         return header;
     }
 
-    // Main content
+    // MAIN CONTENT
     private JPanel createMainContent() {
 
         JPanel content = new JPanel(new BorderLayout(15, 20));
 
         content.setBackground(BACKGROUND);
+
         content.setBorder(
                 BorderFactory.createEmptyBorder(30, 0, 0, 0)
         );
 
-        // Statistics cards
+        // STATISTICS CARDS
+
         JPanel cards = new JPanel(new GridLayout(1, 3, 15, 15));
 
         cards.setBackground(BACKGROUND);
@@ -103,7 +106,8 @@ public class BillingPanel extends JPanel {
         cards.add(createCard("Total Revenue", revenueLabel));
         cards.add(createCard("Pending Amount", pendingLabel));
 
-        // Table
+        // BILL TABLE
+
         String[] columns = {
                 "Bill ID",
                 "Patient ID",
@@ -121,31 +125,45 @@ public class BillingPanel extends JPanel {
             }
         };
 
-        JTable table = new JTable(tableModel);
+        billTable = new JTable(tableModel);
 
-        table.setRowHeight(30);
-        table.setFont(new Font("Arial", Font.PLAIN, 13));
+        billTable.setRowHeight(30);
+        billTable.setFont(new Font("Arial", Font.PLAIN, 13));
 
-        table.getTableHeader().setFont(
+        billTable.getTableHeader().setFont(
                 new Font("Arial", Font.BOLD, 13)
         );
 
-        JScrollPane scrollPane = new JScrollPane(table);
+        JScrollPane scrollPane = new JScrollPane(billTable);
 
         scrollPane.setBorder(
                 BorderFactory.createTitledBorder("Recent Bills")
         );
 
-        JPanel tablePanel = new JPanel(new BorderLayout());
+        // BUTTONS
 
-        tablePanel.setBackground(WHITE);
-        tablePanel.add(scrollPane, BorderLayout.CENTER);
-
-        JButton refreshButton = new JButton("Refresh");
+        JButton refreshButton = createButton("Refresh");
+        JButton paymentButton = createButton("Record Payment");
 
         refreshButton.addActionListener(e -> refreshData());
 
-        tablePanel.add(refreshButton, BorderLayout.SOUTH);
+        paymentButton.addActionListener(e -> openPaymentPanel());
+
+        JPanel buttonPanel = new JPanel(
+                new FlowLayout(FlowLayout.RIGHT)
+        );
+
+        buttonPanel.setBackground(WHITE);
+
+        buttonPanel.add(refreshButton);
+        buttonPanel.add(paymentButton);
+
+        JPanel tablePanel = new JPanel(new BorderLayout());
+
+        tablePanel.setBackground(WHITE);
+
+        tablePanel.add(scrollPane, BorderLayout.CENTER);
+        tablePanel.add(buttonPanel, BorderLayout.SOUTH);
 
         content.add(cards, BorderLayout.NORTH);
         content.add(tablePanel, BorderLayout.CENTER);
@@ -153,12 +171,15 @@ public class BillingPanel extends JPanel {
         return content;
     }
 
-    // Dashboard card
+    // DASHBOARD CARD
     private JPanel createCard(String title, JLabel value) {
 
         JPanel card = new JPanel();
 
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setLayout(
+                new BoxLayout(card, BoxLayout.Y_AXIS)
+        );
+
         card.setBackground(WHITE);
 
         card.setBorder(
@@ -187,7 +208,19 @@ public class BillingPanel extends JPanel {
         return card;
     }
 
-    // Load database data
+    // COMMON BUTTON
+    private JButton createButton(String text) {
+
+        JButton button = new JButton(text);
+
+        button.setBackground(DARK_BLUE);
+        button.setForeground(WHITE);
+        button.setFocusPainted(false);
+
+        return button;
+    }
+
+    // LOAD DATABASE DATA
     public void refreshData() {
 
         totalBillsLabel.setText(
@@ -221,10 +254,51 @@ public class BillingPanel extends JPanel {
         }
     }
 
-    // Open Generate Bill
-    private void openGenerateBill() {
+    // OPEN PAYMENT PANEL
+    private void openPaymentPanel() {
 
-        // JFrame frame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        int selectedRow = billTable.getSelectedRow();
+
+        if (selectedRow == -1) {
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Please select a bill first.",
+                    "No Bill Selected",
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            return;
+        }
+
+        int modelRow = billTable.convertRowIndexToModel(selectedRow);
+
+        int billId = Integer.parseInt(
+                tableModel.getValueAt(modelRow, 0).toString()
+        );
+
+        Window parent = SwingUtilities.getWindowAncestor(this);
+
+        JDialog dialog = new JDialog(
+                parent,
+                "Payment Management - Bill #" + billId,
+                Dialog.ModalityType.APPLICATION_MODAL
+        );
+
+        PaymentPanel paymentPanel = new PaymentPanel(billId);
+
+        dialog.setContentPane(paymentPanel);
+        dialog.setSize(1050, 700);
+        dialog.setLocationRelativeTo(this);
+
+        dialog.setVisible(true);
+
+        // Refresh after payment window closes
+        refreshData();
+    }
+
+    // OPEN GENERATE BILL
+    private void openGenerateBill() {
 
         JPanel container = (JPanel) getParent();
 
@@ -236,11 +310,16 @@ public class BillingPanel extends JPanel {
 
         container.add(
                 new GenerateBillPanel(() -> {
+
                     container.removeAll();
+
                     container.add(this, BorderLayout.CENTER);
+
                     refreshData();
+
                     container.revalidate();
                     container.repaint();
+
                 }),
                 BorderLayout.CENTER
         );
